@@ -112,6 +112,7 @@ return [
     ],
 
     'notify' => [
+        'order_stale' => 'Laadvolgorde was verouderd, opnieuw geladen. Probeer het nog eens.',
         'added' => '{1} :count mod klaargezet om te downloaden|[2,*] :count mods klaargezet om te downloaden',
         'added_body' => 'Herstart de server om te downloaden. Daarna verschijnen ze onder "Beschikbaar".',
         'already_added' => 'Dat workshop-item stond er al in.',

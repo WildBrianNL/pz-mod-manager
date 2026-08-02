@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.2.0
+
+- Drag and drop to reorder the load list. Moving a framework from the bottom of
+  a 100+ mod list used to take one click and one round trip per position; it is
+  now a single gesture and a single request. The arrows are still there for
+  precise single steps and for keyboard use.
+- Reordering validates that the incoming list is a permutation of what is on
+  disk. If the page was showing stale state it reloads instead of writing an
+  order that silently drops or duplicates a mod, which would only surface on the
+  next server start.
+- Dragging is disabled while the search box is in use, because a filtered list
+  does not reflect real load positions.
+
 ## 2.1.0
 
 - Disable and Delete are now separate, always-visible actions. Disabling also

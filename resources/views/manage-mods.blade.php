@@ -104,10 +104,40 @@
 
         @php $activeRows = $this->activeFiltered(); $activeCount = count($activeRows); @endphp
         <div wire:loading.class="fi-disabled" style="transition:opacity .15s;"
-             wire:target="activate,deactivate,move,autoSort,remove,refresh,addMod,removeOrphans,addMapsToConfig">
+             wire:target="activate,deactivate,move,reorder,autoSort,remove,refresh,addMod,removeOrphans,addMapsToConfig"
+             x-data="{
+                 from: null,
+                 start(i, e) { this.from = i; e.dataTransfer.effectAllowed = 'move'; },
+                 over(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; },
+                 drop(to, e) {
+                     e.preventDefault();
+                     const from = this.from;
+                     this.from = null;
+                     if (from === null || from === to) return;
+                     // Read the order from the DOM so it always matches what the
+                     // user sees, then send the whole permuted list at once.
+                     // $root, not $el: this method is invoked from a row handler,
+                     // so $el is that row and querySelectorAll would search only
+                     // its descendants and find nothing.
+                     const ids = Array.from(this.$root.querySelectorAll('[data-mod-id]'))
+                                      .map(n => n.dataset.modId);
+                     const [moved] = ids.splice(from, 1);
+                     ids.splice(to, 0, moved);
+                     this.$wire.reorder(ids);
+                 }
+             }">
             @forelse ($activeRows as $i => $row)
-                @php $st = $statusMeta[$row['status']]; @endphp
-                <div style="{{ $rowGap }}border-bottom:1px solid rgba(128,128,128,.12);" wire:key="a-{{ $row['mod_id'] }}">
+                @php $st = $statusMeta[$row['status']]; $drag = $this->canWrite() && $search === ''; @endphp
+                <div style="{{ $rowGap }}border-bottom:1px solid rgba(128,128,128,.12);{{ $drag ? 'cursor:grab;' : '' }}"
+                     wire:key="a-{{ $row['mod_id'] }}"
+                     data-mod-id="{{ $row['mod_id'] }}"
+                     @if ($drag)
+                         draggable="true"
+                         x-on:dragstart="start({{ $i }}, $event)"
+                         x-on:dragover="over($event)"
+                         x-on:drop="drop({{ $i }}, $event)"
+                         x-on:dragend="from = null"
+                     @endif>
                     @if ($this->canWrite() && $search === '')
                         <div style="display:flex;flex-direction:column;line-height:.7;font-size:10px;opacity:.45;flex:none;">
                             <button type="button" wire:click="move({{ \Illuminate\Support\Js::from($row['mod_id']) }},'up')" @disabled($i === 0) style="padding:1px 2px;">▲</button>

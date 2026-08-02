@@ -568,6 +568,38 @@ class ManageMods extends Page
         $this->persist($ids);
     }
 
+    /**
+     * Apply a whole new load order in one go (drag and drop).
+     *
+     * A drag may only permute the list. If the incoming set does not match what
+     * is on disk the page was showing stale state, so refuse and reload rather
+     * than write an order that silently drops or duplicates a mod. Losing a mod
+     * from Mods= is invisible until the server next boots.
+     */
+    public function reorder(array $modIds): void
+    {
+        abort_unless($this->canWrite(), 403);
+
+        $current = $this->currentModIds();
+        $incoming = array_values(array_filter($modIds, 'is_string'));
+
+        $a = $incoming;
+        $b = $current;
+        sort($a);
+        sort($b);
+        if ($a !== $b) {
+            Notification::make()
+                ->title(trans('pzmm::messages.notify.order_stale'))
+                ->warning()
+                ->send();
+            $this->load();
+
+            return;
+        }
+
+        $this->persist($incoming);
+    }
+
     /** Topological sort on mod.info `require=`, frameworks first. */
     public function autoSort(): void
     {

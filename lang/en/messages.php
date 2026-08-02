@@ -112,6 +112,7 @@ return [
     ],
 
     'notify' => [
+        'order_stale' => 'Load order was out of date, reloaded. Please try again.',
         'added' => '{1} :count mod queued for download|[2,*] :count mods queued for download',
         'added_body' => 'Restart the server to download. They appear under "Available" afterwards.',
         'already_added' => 'That workshop item was already added.',
