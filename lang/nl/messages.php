@@ -66,6 +66,8 @@ return [
     ],
 
     'action' => [
+        'lock' => 'Vastzetten op deze plek (blijft staan na auto-sort)',
+        'unlock' => 'Losmaken',
         'add' => 'Toevoegen',
         'sort' => 'Auto-sorteer',
         'refresh' => 'Vernieuwen',
@@ -112,6 +114,8 @@ return [
     ],
 
     'notify' => [
+        'locked' => 'Vastgezet op plek :position. Auto-sort laat hem daar staan.',
+        'unlocked' => 'Losgemaakt.',
         'order_stale' => 'Laadvolgorde was verouderd, opnieuw geladen. Probeer het nog eens.',
         'added' => '{1} :count mod klaargezet om te downloaden|[2,*] :count mods klaargezet om te downloaden',
         'added_body' => 'Herstart de server om te downloaden. Daarna verschijnen ze onder "Beschikbaar".',

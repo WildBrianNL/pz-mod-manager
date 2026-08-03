@@ -66,6 +66,8 @@ return [
     ],
 
     'action' => [
+        'lock' => 'Lock to this position (survives auto-sort)',
+        'unlock' => 'Unlock',
         'add' => 'Add',
         'sort' => 'Auto-sort',
         'refresh' => 'Refresh',
@@ -112,6 +114,8 @@ return [
     ],
 
     'notify' => [
+        'locked' => 'Locked at position :position. Auto-sort will keep it there.',
+        'unlocked' => 'Unlocked.',
         'order_stale' => 'Load order was out of date, reloaded. Please try again.',
         'added' => '{1} :count mod queued for download|[2,*] :count mods queued for download',
         'added_body' => 'Restart the server to download. They appear under "Available" afterwards.',

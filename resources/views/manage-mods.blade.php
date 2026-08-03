@@ -104,7 +104,7 @@
 
         @php $activeRows = $this->activeFiltered(); $activeCount = count($activeRows); @endphp
         <div wire:loading.class="fi-disabled" style="transition:opacity .15s;"
-             wire:target="activate,deactivate,move,reorder,autoSort,remove,refresh,addMod,removeOrphans,addMapsToConfig"
+             wire:target="activate,deactivate,move,reorder,toggleLock,autoSort,remove,refresh,addMod,removeOrphans,addMapsToConfig"
              x-data="{
                  from: null,
                  start(i, e) { this.from = i; e.dataTransfer.effectAllowed = 'move'; },
@@ -145,6 +145,18 @@
                         </div>
                     @endif
                     <span style="width:22px;text-align:right;font-size:11px;font-variant-numeric:tabular-nums;opacity:.45;flex:none;">{{ $i + 1 }}</span>
+
+                    @if ($this->canWrite())
+                        @php $locked = isset($locks[$row['mod_id']]); @endphp
+                        <button type="button" title="{{ $locked ? trans('pzmm::messages.action.unlock') : trans('pzmm::messages.action.lock') }}"
+                                wire:click="toggleLock({{ \Illuminate\Support\Js::from($row['mod_id']) }})"
+                                wire:target="toggleLock({{ \Illuminate\Support\Js::from($row['mod_id']) }})"
+                                wire:loading.attr="disabled"
+                                style="flex:none;padding:0 2px;line-height:1;font-size:12px;{{ $locked ? 'opacity:1;' : 'opacity:.3;' }}">
+                            <x-filament::icon icon="{{ $locked ? 'tabler-lock' : 'tabler-lock-open' }}"
+                                              style="width:14px;height:14px;{{ $locked ? 'color:#f59e0b;' : '' }}" />
+                        </button>
+                    @endif
 
                     @if ($row['preview'])
                         <img src="{{ $row['preview'] }}" alt="" loading="lazy" style="{{ $thumb }}" />

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.3.0
+
+- Lock a mod to its load-order position. Auto-sort works around locked mods
+  instead of moving them: dependency sorting only knows about `require=` and
+  `category=framework`, and not every framework declares either, so some mods
+  have to stay put by hand.
+- A lock pins against auto-sort, not against manual edits. Dragging or arrowing a
+  locked mod moves its lock with it, so a lock always means "keep it where it is"
+  rather than "keep it at the number it had three edits ago". Locks for mods that
+  leave the load order are dropped.
+- Locked mods are re-inserted in ascending index order after a sort, so several
+  locks land correctly, and an index past the end of the list clamps to the end
+  rather than dropping the mod from `Mods=`.
+
 ## 2.2.0
 
 - Drag and drop to reorder the load list. Moving a framework from the bottom of

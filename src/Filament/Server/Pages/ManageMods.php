@@ -39,6 +39,21 @@ class ManageMods extends Page
     /** @var array<int,array<string,mixed>> */
     public array $alerts = [];
 
+    /**
+     * mod-id => load-order index that auto-sort must preserve.
+     *
+     * Not every framework declares `category=framework` in its mod.info, so
+     * dependency sorting alone puts some mods in the wrong place. A lock pins
+     * one to an index and auto-sort works around it.
+     *
+     * Locks pin against auto-sort only: any manual reorder re-records the locked
+     * mods at wherever they ended up, so dragging never leaves a lock pointing
+     * at a stale index.
+     *
+     * @var array<string,int>
+     */
+    public array $locks = [];
+
     /** @var array<string,int> */
     public array $stats = ['active' => 0, 'available' => 0, 'restart' => 0, 'errors' => 0];
 
@@ -157,6 +172,8 @@ class ManageMods extends Page
         }
         $this->bundleSize = array_map('count', $byWorkshop);
         $awaitingDownload = array_values(array_diff($ini['workshopItems'], array_keys($byWorkshop)));
+
+        $this->locks = app(StateStore::class)->read($server)['locks'];
 
         $active = [];
         $seen = [];
@@ -487,6 +504,7 @@ class ManageMods extends Page
         }
         $modIds = array_values(array_unique($modIds));
         app(IniService::class)->write($server, $this->workshopItemsFor($modIds, $ini), $modIds);
+        $this->syncLocks($modIds);
         if ($reload) {
             $this->load();
         }
@@ -600,6 +618,106 @@ class ManageMods extends Page
         $this->persist($incoming);
     }
 
+    /**
+     * Pin or unpin a mod at its current load-order position.
+     *
+     * The index recorded is the position in the real config, not in the filtered
+     * view, so locking while a search is active still stores the right number.
+     */
+    public function toggleLock(string $modId): void
+    {
+        abort_unless($this->canWrite(), 403);
+
+        $store = app(StateStore::class);
+        $state = $store->read($this->getServer());
+        $locks = $state['locks'];
+
+        if (isset($locks[$modId])) {
+            unset($locks[$modId]);
+            $title = trans('pzmm::messages.notify.unlocked');
+        } else {
+            $index = array_search($modId, $this->currentModIds(), true);
+            if ($index === false) {
+                return;
+            }
+            $locks[$modId] = $index;
+            $title = trans('pzmm::messages.notify.locked', ['position' => $index + 1]);
+        }
+
+        $state['locks'] = $locks;
+        $store->write($this->getServer(), $state);
+        $this->locks = $locks;
+
+        Notification::make()->title($title)->success()->send();
+    }
+
+    /**
+     * Re-record every lock at the position the mod actually occupies now.
+     *
+     * Called after each write so a lock always means "keep it where it is",
+     * never "keep it at the number it had three edits ago". Locks for mods that
+     * left the load order are dropped.
+     *
+     * @param  string[]  $modIds
+     */
+    private function syncLocks(array $modIds): void
+    {
+        $store = app(StateStore::class);
+        $state = $store->read($this->getServer());
+        if (!$state['locks']) {
+            $this->locks = [];
+
+            return;
+        }
+
+        $locks = [];
+        foreach ($state['locks'] as $modId => $_old) {
+            $index = array_search($modId, $modIds, true);
+            if ($index !== false) {
+                $locks[$modId] = $index;
+            }
+        }
+
+        if ($locks !== $state['locks']) {
+            $state['locks'] = $locks;
+            $store->write($this->getServer(), $state);
+        }
+        $this->locks = $locks;
+    }
+
+    /**
+     * Put locked mods back on their pinned indices after a sort.
+     *
+     * Locked mods are pulled out, then re-inserted in ascending index order.
+     * Ascending matters: each insertion shifts everything after it right, so
+     * processing low indices first leaves the earlier ones already correct.
+     * An index past the end of the list clamps to the end rather than being
+     * dropped, which would silently lose a mod from Mods=.
+     *
+     * @param  string[]  $sorted
+     * @return string[]
+     */
+    private function applyLocks(array $sorted): array
+    {
+        $locks = array_filter(
+            $this->locks,
+            fn ($modId) => in_array($modId, $sorted, true),
+            ARRAY_FILTER_USE_KEY
+        );
+        if (!$locks) {
+            return $sorted;
+        }
+
+        asort($locks);
+        $rest = array_values(array_filter($sorted, fn ($id) => !isset($locks[$id])));
+
+        foreach ($locks as $modId => $index) {
+            array_splice($rest, min($index, count($rest)), 0, [$modId]);
+        }
+
+        return $rest;
+    }
+
     /** Topological sort on mod.info `require=`, frameworks first. */
     public function autoSort(): void
     {
@@ -646,7 +764,7 @@ class ManageMods extends Page
             }
         }
 
-        $this->persist($sorted);
+        $this->persist($this->applyLocks($sorted));
         Notification::make()->title(trans('pzmm::messages.notify.sorted'))->success()->send();
     }
 
