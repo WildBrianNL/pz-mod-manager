@@ -8,7 +8,12 @@ use Illuminate\Support\Facades\Log;
 
 class AutoUpdateService
 {
+    // Keep delayed-restart markers around long enough for missed scheduler ticks.
     private const WARNING_TTL_MINUTES = 15;
+    private const PLAYER_COUNT_POLL_INTERVAL_US = 500_000;
+    private const PLAYER_COUNT_POLL_TIMEOUT_US = 6_000_000;
+    // Steam timestamps can differ by a few minutes around propagation/download windows.
+    private const UPDATE_SKEW_SECONDS = 300;
 
     public function __construct(
         private IniService $ini,
@@ -122,7 +127,7 @@ class AutoUpdateService
         $steam = $this->steam->details(array_keys($installedPerWorkshop));
         foreach ($installedPerWorkshop as $workshopId => $installedAt) {
             $updatedAt = (int) ($steam[$workshopId]['updated'] ?? 0);
-            if ($installedAt > 0 && $updatedAt > $installedAt + 300) {
+            if ($installedAt > 0 && $updatedAt > $installedAt + self::UPDATE_SKEW_SECONDS) {
                 return true;
             }
         }
@@ -133,15 +138,24 @@ class AutoUpdateService
     private function playersCount(Server $server): ?int
     {
         try {
+            $baselineLength = $this->logs->latestLogLength($server);
             $this->console->setServer($server)->send('players');
-            usleep(750_000);
 
-            return $this->logs->latestPlayersCount($server);
+            $waited = 0;
+            while ($waited <= self::PLAYER_COUNT_POLL_TIMEOUT_US) {
+                $count = $this->logs->latestPlayersCountSince($server, $baselineLength ?? 0);
+                if ($count !== null) {
+                    return $count;
+                }
+
+                usleep(self::PLAYER_COUNT_POLL_INTERVAL_US);
+                $waited += self::PLAYER_COUNT_POLL_INTERVAL_US;
+            }
         } catch (\Throwable $e) {
             Log::warning('PZ auto-update players command failed', ['server_id' => $server->id, 'error' => $e->getMessage()]);
-
-            return null;
         }
+
+        return null;
     }
 
     private function warnPlayers(Server $server): void

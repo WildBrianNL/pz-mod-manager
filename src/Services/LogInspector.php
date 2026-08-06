@@ -125,8 +125,54 @@ class LogInspector
 
     public function latestPlayersCount(Server $server): ?int
     {
-        $repo = $this->files->setServer($server);
+        $content = $this->latestDebugLogContent($server);
+        if ($content === null) {
+            return null;
+        }
 
+        return $this->extractPlayersCount($content);
+    }
+
+    public function latestPlayersCountSince(Server $server, int $offset): ?int
+    {
+        $content = $this->latestDebugLogContent($server);
+        if ($content === null) {
+            return null;
+        }
+
+        $length = strlen($content);
+        $start = $offset;
+        if ($start < 0 || $start > $length) {
+            $start = 0;
+        }
+
+        return $this->extractPlayersCount(substr($content, $start));
+    }
+
+    public function latestLogLength(Server $server): ?int
+    {
+        $content = $this->latestDebugLogContent($server);
+
+        return $content === null ? null : strlen($content);
+    }
+
+    private function latestDebugLogContent(Server $server): ?string
+    {
+        $repo = $this->files->setServer($server);
+        $latest = $this->latestDebugLogName($repo);
+        if ($latest === null) {
+            return null;
+        }
+
+        try {
+            return (string) $repo->getContent(".cache/Logs/$latest", 8_000_000);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function latestDebugLogName(DaemonFileRepository $repo): ?string
+    {
         try {
             $entries = $repo->getDirectory('.cache/Logs');
         } catch (\Throwable $e) {
@@ -143,21 +189,15 @@ class LogInspector
                 $latestAt = $at;
             }
         }
-        if ($latest === null) {
-            return null;
-        }
 
-        try {
-            $content = (string) $repo->getContent(".cache/Logs/$latest", 8_000_000);
-        } catch (\Throwable $e) {
-            return null;
-        }
+        return $latest;
+    }
 
+    private function extractPlayersCount(string $content): ?int
+    {
         $count = null;
         foreach (preg_split('/\r\n|\r|\n/', $content) as $line) {
             if (preg_match('/Players connected\s*\((\d+)\)/i', $line, $m)) {
-                $count = (int) $m[1];
-            } elseif (preg_match('/\bplayers?\s*:\s*(\d+)\b/i', $line, $m)) {
                 $count = (int) $m[1];
             }
         }
