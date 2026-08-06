@@ -16,6 +16,7 @@ use WildBrianNL\PZModManager\Services\PowerService;
 use WildBrianNL\PZModManager\Services\StateStore;
 use WildBrianNL\PZModManager\Services\SteamClient;
 use Illuminate\Support\Facades\Cache;
+use Carbon\Carbon;
 
 class ManageMods extends Page
 {
@@ -56,6 +57,11 @@ class ManageMods extends Page
 
     /** @var array<string,int> */
     public array $stats = ['active' => 0, 'available' => 0, 'restart' => 0, 'errors' => 0];
+
+    /** @var array{state:string,checked_at:?string,pending_at:?string,summary:?string,details:array<int,string>} */
+    public array $autoUpdate = ['state' => 'idle', 'checked_at' => null, 'pending_at' => null, 'summary' => null, 'details' => []];
+
+    public bool $autoUpdateVerbose = false;
 
     public string $search = '';
 
@@ -132,6 +138,7 @@ class ManageMods extends Page
     public function load(): void
     {
         $server = $this->getServer();
+        $this->loadAutoUpdateStatus($server);
 
         $ini = app(IniService::class)->read($server);
         $this->configError = $ini['error'];
@@ -945,9 +952,58 @@ class ManageMods extends Page
         Notification::make()->title(trans('pzmm::messages.notify.refreshed'))->success()->send();
     }
 
+    public function refreshAutoUpdateStatus(): void
+    {
+        $this->loadAutoUpdateStatus($this->getServer());
+    }
+
+    public function toggleAutoUpdateVerbose(): void
+    {
+        $this->autoUpdateVerbose = !$this->autoUpdateVerbose;
+        $this->loadAutoUpdateStatus($this->getServer());
+    }
+
     private function forgetCaches(): void
     {
         Cache::forget("pzmm:log:{$this->getServer()->id}");
+    }
+
+    private function loadAutoUpdateStatus(Server $server): void
+    {
+        $pendingAt = (int) Cache::get($this->pendingRestartKey($server), 0);
+        $status = Cache::get($this->autoUpdateStatusKey($server), []);
+
+        $state = (string) ($status['state'] ?? '');
+        if ($state === '') {
+            $state = $pendingAt > now()->timestamp ? 'pending_restart' : 'idle';
+        }
+
+        $checkedAt = (int) ($status['checked_at'] ?? 0);
+        $statusPendingAt = (int) ($status['pending_at'] ?? 0);
+        $summary = trim((string) ($status['summary'] ?? ''));
+        $details = array_values(array_filter(array_map(
+            fn ($line) => trim((string) $line),
+            is_array($status['details'] ?? null) ? $status['details'] : []
+        ), fn ($line) => $line !== ''));
+        $pendingAt = max($pendingAt, $statusPendingAt);
+
+        $this->autoUpdate = [
+            'state' => $state,
+            'checked_at' => $checkedAt > 0 ? Carbon::createFromTimestamp($checkedAt)->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s') : null,
+            'pending_at' => $pendingAt > now()->timestamp ? Carbon::createFromTimestamp($pendingAt)->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s') : null,
+            'summary' => $summary !== '' ? $summary : null,
+            'details' => array_slice($details, 0, 40),
+        ];
+    }
+
+    private function autoUpdateStatusKey(Server $server): string
+    {
+        return "pzmm:auto-update:status:{$server->id}";
+    }
+
+    private function pendingRestartKey(Server $server): string
+    {
+        return "pzmm:auto-update:pending-restart:{$server->id}";
     }
 
     // ------------------------------------------------------------------ view

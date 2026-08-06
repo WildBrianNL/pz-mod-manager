@@ -17,26 +17,31 @@ class SteamClient
      * simply absent - every caller must degrade gracefully.
      *
      * @param  string[]  $ids
+     * @param  ?int  $maxAgeSeconds  Force refresh when cached data is older than this.
      * @return array<string,array<string,mixed>>
      */
-    public function details(array $ids): array
+    public function details(array $ids, ?int $maxAgeSeconds = null): array
     {
         $ids = array_values(array_unique(array_filter($ids)));
         $out = [];
         $missing = [];
 
         foreach ($ids as $id) {
-            $cached = Cache::get("pzmm:steam:$id");
-            if (is_array($cached)) {
+            $cached = $this->readCachedDetail($id, $maxAgeSeconds);
+            if ($cached !== null) {
                 $out[$id] = $cached;
             } else {
                 $missing[] = $id;
             }
         }
 
+        $cacheHours = max(1, (int) config('pz-mod-manager.cache.steam_hours', 12));
         foreach (array_chunk($missing, 50) as $chunk) {
             foreach ($this->fetchDetails($chunk) as $id => $meta) {
-                Cache::put("pzmm:steam:$id", $meta, now()->addHours(12));
+                Cache::put("pzmm:steam:$id", [
+                    'meta' => $meta,
+                    'fetched_at' => now()->timestamp,
+                ], now()->addHours($cacheHours));
                 $out[$id] = $meta;
             }
         }
@@ -121,6 +126,28 @@ class SteamClient
         }
 
         return $out;
+    }
+
+    /** @return ?array<string,mixed> */
+    private function readCachedDetail(string $id, ?int $maxAgeSeconds): ?array
+    {
+        $cached = Cache::get("pzmm:steam:$id");
+        if (!is_array($cached)) {
+            return null;
+        }
+
+        // Legacy shape: cached raw metadata without an age marker.
+        if (!array_key_exists('meta', $cached) || !is_array($cached['meta'] ?? null)) {
+            return $maxAgeSeconds === null ? $cached : null;
+        }
+
+        $meta = $cached['meta'];
+        $fetchedAt = (int) ($cached['fetched_at'] ?? 0);
+        if ($maxAgeSeconds !== null && $fetchedAt > 0 && now()->timestamp - $fetchedAt > $maxAgeSeconds) {
+            return null;
+        }
+
+        return $meta;
     }
 
     /** @param string[] $tags */

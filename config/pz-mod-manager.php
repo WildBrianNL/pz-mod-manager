@@ -12,6 +12,13 @@ return [
     // Only show the Mods page for eggs whose name contains this.
     'egg_match' => 'zomboid',
 
+    'auto_update' => [
+        // How often to check Workshop updates for enabled mods.
+        'check_interval_minutes' => 1,
+        // Maximum age of cached Steam metadata used by auto-update checks.
+        'max_steam_meta_age_seconds' => 60,
+    ],
+
     'cache' => [
         // Parsed mod index; invalidated automatically when files change.
         'index_days' => 7,

@@ -6,6 +6,23 @@ return [
     'add_placeholder' => 'Steam Workshop-ID, item-URL of collectie-URL',
     'auto_activate' => 'direct aanzetten',
     'auto_activate_hint' => 'Probeert de mod meteen aan te zetten zodat één herstart genoeg is. Wordt na de download automatisch geverifieerd en gecorrigeerd.',
+    'auto_update' => [
+        'title' => 'Auto-update status',
+        'last_checked' => 'Laatste controle: :time',
+        'pending_at' => 'Herstart gepland om: :time',
+        'summary' => 'Samenvatting: :summary',
+        'details_title' => 'Uitgebreide details',
+        'no_details' => 'Nog geen details vastgelegd.',
+        'verbose_on' => 'Verbose: aan',
+        'verbose_off' => 'Verbose: uit',
+        'state' => [
+            'idle' => 'Ingeschakeld — controleert elke :minutes minuut/minuten op Workshop-updates.',
+            'checking' => 'Controleert nu op Steam Workshop-updates…',
+            'pending_restart' => 'Updates gevonden. Wacht op het automatische herstartmoment.',
+            'restarting' => 'Voert updates door met een serverherstart.',
+            'check_failed' => 'Kon online spelers niet bevestigen. De volgende controle probeert opnieuw.',
+        ],
+    ],
 
     'stat' => [
         'active' => 'Aan',
