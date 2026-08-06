@@ -11,7 +11,7 @@ return [
         'last_checked' => 'Last check: :time',
         'pending_at' => 'Restart scheduled at: :time',
         'state' => [
-            'idle' => 'Enabled — checking for Workshop updates every 5 minutes.',
+            'idle' => 'Enabled — checking for Workshop updates every :minutes minute(s).',
             'checking' => 'Checking Steam Workshop updates now…',
             'pending_restart' => 'Updates found. Waiting for the automatic restart window.',
             'restarting' => 'Applying updates by restarting the server.',

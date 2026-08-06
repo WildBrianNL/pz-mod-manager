@@ -63,7 +63,7 @@
                 {{ trans('pzmm::messages.auto_update.title') }}
             </div>
             <div style="font-size:.78rem;color:{{ $autoTone['text'] }};">
-                {{ trans('pzmm::messages.auto_update.state.' . $autoState) }}
+                {{ trans('pzmm::messages.auto_update.state.' . $autoState, ['minutes' => max(1, min(59, (int) config('pz-mod-manager.auto_update.check_interval_minutes', 1)))]) }}
             </div>
             @if ($autoUpdate['pending_at'])
                 <div style="font-size:.72rem;opacity:.8;">{{ trans('pzmm::messages.auto_update.pending_at', ['time' => $autoUpdate['pending_at']]) }}</div>

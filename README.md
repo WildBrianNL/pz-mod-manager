@@ -128,7 +128,10 @@ stay fast.
 
 `config/pz-mod-manager.php` holds the Steam app id, the fallback build (the
 running server's build is detected automatically), the egg name to match, and
-cache lifetimes. The defaults are fine for a normal Project Zomboid server.
+cache lifetimes. It also exposes auto-update tuning:
+
+- `auto_update.check_interval_minutes` (default `1`)
+- `auto_update.max_steam_meta_age_seconds` (default `60`)
 
 ## Building a release zip
 

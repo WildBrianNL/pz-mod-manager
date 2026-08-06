@@ -138,7 +138,8 @@ class AutoUpdateService
             return false;
         }
 
-        $steam = $this->steam->details(array_keys($installedPerWorkshop));
+        $freshSteamAge = max(30, (int) config('pz-mod-manager.auto_update.max_steam_meta_age_seconds', 60));
+        $steam = $this->steam->details(array_keys($installedPerWorkshop), $freshSteamAge);
         foreach ($installedPerWorkshop as $workshopId => $installedAt) {
             $updatedAt = (int) ($steam[$workshopId]['updated'] ?? 0);
             if ($installedAt > 0 && $updatedAt > $installedAt + self::UPDATE_SKEW_SECONDS) {

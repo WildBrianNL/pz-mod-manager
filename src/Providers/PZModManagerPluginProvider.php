@@ -17,10 +17,11 @@ class PZModManagerPluginProvider extends ServiceProvider
     {
         $this->app->booted(function () {
             $schedule = $this->app->make(Schedule::class);
+            $checkInterval = max(1, min(59, (int) config('pz-mod-manager.auto_update.check_interval_minutes', 1)));
 
             $schedule->call(fn () => app(AutoUpdateService::class)->runChecks())
                 ->name('pzmm:auto-update-check')
-                ->everyFiveMinutes()
+                ->cron("*/{$checkInterval} * * * *")
                 ->withoutOverlapping();
 
             $schedule->call(fn () => app(AutoUpdateService::class)->processPendingRestarts())

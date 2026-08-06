@@ -11,7 +11,7 @@ return [
         'last_checked' => 'Laatste controle: :time',
         'pending_at' => 'Herstart gepland om: :time',
         'state' => [
-            'idle' => 'Ingeschakeld — controleert elke 5 minuten op Workshop-updates.',
+            'idle' => 'Ingeschakeld — controleert elke :minutes minuut/minuten op Workshop-updates.',
             'checking' => 'Controleert nu op Steam Workshop-updates…',
             'pending_restart' => 'Updates gevonden. Wacht op het automatische herstartmoment.',
             'restarting' => 'Voert updates door met een serverherstart.',
