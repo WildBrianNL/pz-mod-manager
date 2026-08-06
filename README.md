@@ -48,9 +48,19 @@ loaded, so every mod reports the truth:
 | not found | listed in `Mods=` but nowhere on the server |
 
 **Load order**
-- Move mods up and down; the order in the list is the load order.
+- Drag a mod to a new position, or use the arrows for single steps and keyboard
+  use. The order in the list is the load order.
 - **Auto-sort** performs a topological sort on the `require=` dependencies in
   each `mod.info`, with frameworks first.
+- **Lock a mod to its position** and auto-sort works around it. Sorting can only
+  see `require=` and `category=framework`, and not every framework declares
+  either, so some mods have to be held in place by hand. A lock pins against
+  auto-sort, not against your own edits: drag a locked mod and its lock moves
+  with it.
+- Known framework ids are hoisted to the front of `Mods=` on every write. The
+  server skips a mod whose dependency has not loaded yet without reporting it,
+  and a list rebuilt from a directory scan could otherwise leave a framework
+  sitting behind the mods that need it.
 - Warns when the load order has changed but has not been applied yet.
 
 **Working in bulk**
@@ -118,7 +128,7 @@ docker exec pelican-panel-1 php artisan optimize:clear
 | Action | Required subuser permission |
 | --- | --- |
 | View the page | `file.read` |
-| Add, enable, disable, delete, reorder | `file.update` |
+| Add, enable, disable, delete, reorder, lock, bulk actions | `file.update` |
 | Restart button | `control.restart` |
 
 ## How it works
