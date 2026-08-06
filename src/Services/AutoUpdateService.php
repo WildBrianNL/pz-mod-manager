@@ -36,15 +36,20 @@ class AutoUpdateService
         foreach ($this->zomboidServers() as $server) {
             $pendingAt = (int) Cache::get($this->pendingRestartKey($server), 0);
             if ($pendingAt === 0 || now()->timestamp < $pendingAt) {
+                if ($pendingAt > 0) {
+                    $this->setStatus($server, 'pending_restart', $pendingAt);
+                }
                 continue;
             }
 
             if (!$this->hasUpdates($server)) {
                 Cache::forget($this->pendingRestartKey($server));
+                $this->setStatus($server, 'idle');
 
                 continue;
             }
 
+            $this->setStatus($server, 'restarting');
             $this->restart($server);
             Cache::forget($this->pendingRestartKey($server));
         }
@@ -52,20 +57,26 @@ class AutoUpdateService
 
     private function checkServer(Server $server): void
     {
+        $this->setStatus($server, 'checking');
+
         if (!$this->hasUpdates($server)) {
             Cache::forget($this->pendingRestartKey($server));
+            $this->setStatus($server, 'idle');
 
             return;
         }
 
         $pendingAt = (int) Cache::get($this->pendingRestartKey($server), 0);
         if ($pendingAt > 0) {
+            $this->setStatus($server, 'pending_restart', $pendingAt);
+
             return;
         }
 
         $players = $this->playersCount($server);
 
         if ($players === 0) {
+            $this->setStatus($server, 'restarting');
             $this->restart($server);
 
             return;
@@ -73,16 +84,19 @@ class AutoUpdateService
 
         if ($players !== null && $players > 0) {
             $this->warnPlayers($server);
+            $pendingAt = now()->addMinute()->timestamp;
 
             Cache::put(
                 $this->pendingRestartKey($server),
-                now()->addMinute()->timestamp,
+                $pendingAt,
                 now()->addMinutes(self::WARNING_TTL_MINUTES)
             );
+            $this->setStatus($server, 'pending_restart', $pendingAt);
 
             return;
         }
 
+        $this->setStatus($server, 'check_failed');
         Log::warning('PZ auto-update skipped: could not determine player count', ['server_id' => $server->id]);
     }
 
@@ -193,5 +207,19 @@ class AutoUpdateService
     private function pendingRestartKey(Server $server): string
     {
         return "pzmm:auto-update:pending-restart:{$server->id}";
+    }
+
+    private function statusKey(Server $server): string
+    {
+        return "pzmm:auto-update:status:{$server->id}";
+    }
+
+    private function setStatus(Server $server, string $state, ?int $pendingAt = null): void
+    {
+        Cache::put($this->statusKey($server), [
+            'state' => $state,
+            'checked_at' => now()->timestamp,
+            'pending_at' => $pendingAt,
+        ], now()->addDay());
     }
 }
