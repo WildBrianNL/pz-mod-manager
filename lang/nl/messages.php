@@ -10,6 +10,11 @@ return [
         'title' => 'Auto-update status',
         'last_checked' => 'Laatste controle: :time',
         'pending_at' => 'Herstart gepland om: :time',
+        'summary' => 'Samenvatting: :summary',
+        'details_title' => 'Uitgebreide details',
+        'no_details' => 'Nog geen details vastgelegd.',
+        'verbose_on' => 'Verbose: aan',
+        'verbose_off' => 'Verbose: uit',
         'state' => [
             'idle' => 'Ingeschakeld — controleert elke :minutes minuut/minuten op Workshop-updates.',
             'checking' => 'Controleert nu op Steam Workshop-updates…',

@@ -58,8 +58,10 @@ class ManageMods extends Page
     /** @var array<string,int> */
     public array $stats = ['active' => 0, 'available' => 0, 'restart' => 0, 'errors' => 0];
 
-    /** @var array{state:string,checked_at:?string,pending_at:?string} */
-    public array $autoUpdate = ['state' => 'idle', 'checked_at' => null, 'pending_at' => null];
+    /** @var array{state:string,checked_at:?string,pending_at:?string,summary:?string,details:array<int,string>} */
+    public array $autoUpdate = ['state' => 'idle', 'checked_at' => null, 'pending_at' => null, 'summary' => null, 'details' => []];
+
+    public bool $autoUpdateVerbose = false;
 
     public string $search = '';
 
@@ -955,6 +957,12 @@ class ManageMods extends Page
         $this->loadAutoUpdateStatus($this->getServer());
     }
 
+    public function toggleAutoUpdateVerbose(): void
+    {
+        $this->autoUpdateVerbose = !$this->autoUpdateVerbose;
+        $this->loadAutoUpdateStatus($this->getServer());
+    }
+
     private function forgetCaches(): void
     {
         Cache::forget("pzmm:log:{$this->getServer()->id}");
@@ -972,12 +980,19 @@ class ManageMods extends Page
 
         $checkedAt = (int) ($status['checked_at'] ?? 0);
         $statusPendingAt = (int) ($status['pending_at'] ?? 0);
+        $summary = trim((string) ($status['summary'] ?? ''));
+        $details = array_values(array_filter(array_map(
+            fn ($line) => trim((string) $line),
+            is_array($status['details'] ?? null) ? $status['details'] : []
+        ), fn ($line) => $line !== ''));
         $pendingAt = max($pendingAt, $statusPendingAt);
 
         $this->autoUpdate = [
             'state' => $state,
             'checked_at' => $checkedAt > 0 ? Carbon::createFromTimestamp($checkedAt)->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s') : null,
             'pending_at' => $pendingAt > now()->timestamp ? Carbon::createFromTimestamp($pendingAt)->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s') : null,
+            'summary' => $summary !== '' ? $summary : null,
+            'details' => array_slice($details, 0, 40),
         ];
     }
 

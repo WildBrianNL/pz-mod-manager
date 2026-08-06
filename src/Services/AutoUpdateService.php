@@ -37,19 +37,30 @@ class AutoUpdateService
             $pendingAt = (int) Cache::get($this->pendingRestartKey($server), 0);
             if ($pendingAt === 0 || now()->timestamp < $pendingAt) {
                 if ($pendingAt > 0) {
-                    $this->setStatus($server, 'pending_restart', $pendingAt);
+                    $this->setStatus($server, 'pending_restart', $pendingAt, $this->currentDiagnostics($server));
                 }
                 continue;
             }
 
-            if (!$this->hasUpdates($server)) {
+            $updateCheck = $this->inspectUpdates($server);
+            if (!$updateCheck['has_updates']) {
                 Cache::forget($this->pendingRestartKey($server));
-                $this->setStatus($server, 'idle');
+                $this->setStatus(
+                    $server,
+                    'idle',
+                    null,
+                    $this->withSummary($updateCheck, 'Pending restart cleared because no Workshop updates are currently detected.')
+                );
 
                 continue;
             }
 
-            $this->setStatus($server, 'restarting');
+            $this->setStatus(
+                $server,
+                'restarting',
+                null,
+                $this->withSummary($updateCheck, 'Pending restart window reached. Restarting now to apply updates.')
+            );
             $this->restart($server);
             Cache::forget($this->pendingRestartKey($server));
         }
@@ -57,18 +68,27 @@ class AutoUpdateService
 
     private function checkServer(Server $server): void
     {
-        $this->setStatus($server, 'checking');
+        $this->setStatus($server, 'checking', null, [
+            'summary' => 'Starting Workshop update check.',
+            'details' => [],
+        ]);
 
-        if (!$this->hasUpdates($server)) {
+        $updateCheck = $this->inspectUpdates($server);
+        if (!$updateCheck['has_updates']) {
             Cache::forget($this->pendingRestartKey($server));
-            $this->setStatus($server, 'idle');
+            $this->setStatus($server, 'idle', null, $updateCheck);
 
             return;
         }
 
         $pendingAt = (int) Cache::get($this->pendingRestartKey($server), 0);
         if ($pendingAt > 0) {
-            $this->setStatus($server, 'pending_restart', $pendingAt);
+            $this->setStatus(
+                $server,
+                'pending_restart',
+                $pendingAt,
+                $this->withSummary($updateCheck, 'Workshop updates are still pending restart.')
+            );
 
             return;
         }
@@ -76,7 +96,12 @@ class AutoUpdateService
         $players = $this->playersCount($server);
 
         if ($players === 0) {
-            $this->setStatus($server, 'restarting');
+            $this->setStatus(
+                $server,
+                'restarting',
+                null,
+                $this->withSummary($updateCheck, 'Workshop updates found and no players online. Restarting now.')
+            );
             $this->restart($server);
 
             return;
@@ -91,31 +116,57 @@ class AutoUpdateService
                 $pendingAt,
                 now()->addMinutes(self::WARNING_TTL_MINUTES)
             );
-            $this->setStatus($server, 'pending_restart', $pendingAt);
+            $this->setStatus(
+                $server,
+                'pending_restart',
+                $pendingAt,
+                $this->withSummary($updateCheck, "Workshop updates found with {$players} player(s) online. Warned players and scheduled restart in 1 minute.")
+            );
 
             return;
         }
 
-        $this->setStatus($server, 'check_failed');
+        $this->setStatus(
+            $server,
+            'check_failed',
+            null,
+            $this->withSummary($updateCheck, 'Workshop updates found, but player count could not be confirmed. Will retry on the next check.')
+        );
         Log::warning('PZ auto-update skipped: could not determine player count', ['server_id' => $server->id]);
     }
 
-    private function hasUpdates(Server $server): bool
+    /** @return array{has_updates:bool,summary:string,details:string[]} */
+    private function inspectUpdates(Server $server): array
     {
+        $details = [];
         $ini = $this->ini->read($server);
         if (!$ini['ok']) {
-            return false;
+            return [
+                'has_updates' => false,
+                'summary' => 'Server config could not be read.',
+                'details' => $details,
+            ];
         }
 
         $activeIds = array_values(array_unique($ini['mods']));
+        $details[] = 'Enabled mod IDs in config: '.count($activeIds).'.';
         if (!$activeIds) {
-            return false;
+            return [
+                'has_updates' => false,
+                'summary' => 'No enabled mods are configured.',
+                'details' => $details,
+            ];
         }
 
         $index = $this->scanner->index($server, (int) config('pz-mod-manager.fallback_build', 42));
         if (!$index['ok']) {
-            return false;
+            return [
+                'has_updates' => false,
+                'summary' => 'Installed mod scan failed.',
+                'details' => $details,
+            ];
         }
+        $details[] = 'Installed mods discovered on disk: '.count($index['mods']).'.';
 
         $installedPerWorkshop = [];
         foreach ($index['mods'] as $mod) {
@@ -134,20 +185,61 @@ class AutoUpdateService
             );
         }
 
+        $details[] = 'Active Workshop items with installed files: '.count($installedPerWorkshop).'.';
         if (!$installedPerWorkshop) {
-            return false;
+            return [
+                'has_updates' => false,
+                'summary' => 'No installed Workshop items match enabled mods.',
+                'details' => $details,
+            ];
         }
 
         $freshSteamAge = max(30, (int) config('pz-mod-manager.auto_update.max_steam_meta_age_seconds', 60));
         $steam = $this->steam->details(array_keys($installedPerWorkshop), $freshSteamAge);
+        $details[] = 'Steam metadata max age for this check: '.$freshSteamAge.'s.';
+        $details[] = 'Steam metadata returned for '.count($steam).' of '.count($installedPerWorkshop).' Workshop items.';
+        $compareLines = [];
+        $omitted = 0;
         foreach ($installedPerWorkshop as $workshopId => $installedAt) {
             $updatedAt = (int) ($steam[$workshopId]['updated'] ?? 0);
+
+            if (count($compareLines) < 25) {
+                if ($updatedAt === 0) {
+                    $compareLines[] = "Workshop {$workshopId}: Steam timestamp unavailable.";
+                } elseif ($installedAt <= 0) {
+                    $compareLines[] = "Workshop {$workshopId}: installed timestamp unavailable.";
+                } else {
+                    $delta = $updatedAt - $installedAt;
+                    $compareLines[] = "Workshop {$workshopId}: Steam minus installed = {$delta}s (needs > ".self::UPDATE_SKEW_SECONDS."s).";
+                }
+            } else {
+                $omitted++;
+            }
+
             if ($installedAt > 0 && $updatedAt > $installedAt + self::UPDATE_SKEW_SECONDS) {
-                return true;
+                $details = array_merge($details, $compareLines);
+                if ($omitted > 0) {
+                    $details[] = "Comparison lines omitted: {$omitted}.";
+                }
+
+                return [
+                    'has_updates' => true,
+                    'summary' => "Workshop update detected for {$workshopId}.",
+                    'details' => $details,
+                ];
             }
         }
 
-        return false;
+        $details = array_merge($details, $compareLines);
+        if ($omitted > 0) {
+            $details[] = "Comparison lines omitted: {$omitted}.";
+        }
+
+        return [
+            'has_updates' => false,
+            'summary' => 'No Workshop updates detected.',
+            'details' => $details,
+        ];
     }
 
     private function playersCount(Server $server): ?int
@@ -215,12 +307,50 @@ class AutoUpdateService
         return "pzmm:auto-update:status:{$server->id}";
     }
 
-    private function setStatus(Server $server, string $state, ?int $pendingAt = null): void
+    /**
+     * @param  array{summary?:string,details?:array<int,string>}  $diagnostics
+     */
+    private function setStatus(Server $server, string $state, ?int $pendingAt = null, array $diagnostics = []): void
     {
-        Cache::put($this->statusKey($server), [
+        $status = [
             'state' => $state,
             'checked_at' => now()->timestamp,
             'pending_at' => $pendingAt,
-        ], now()->addDay());
+        ];
+
+        $summary = trim((string) ($diagnostics['summary'] ?? ''));
+        if ($summary !== '') {
+            $status['summary'] = $summary;
+        }
+
+        $details = array_values(array_filter(array_map(
+            fn ($line) => trim((string) $line),
+            is_array($diagnostics['details'] ?? null) ? $diagnostics['details'] : []
+        ), fn ($line) => $line !== ''));
+        if ($details) {
+            $status['details'] = array_slice($details, 0, 40);
+        }
+
+        Cache::put($this->statusKey($server), $status, now()->addDay());
+    }
+
+    /** @param array{has_updates:bool,summary:string,details:string[]} $check */
+    private function withSummary(array $check, string $summary): array
+    {
+        return [
+            'summary' => $summary,
+            'details' => $check['details'] ?? [],
+        ];
+    }
+
+    /** @return array{summary?:string,details?:array<int,string>} */
+    private function currentDiagnostics(Server $server): array
+    {
+        $status = Cache::get($this->statusKey($server), []);
+
+        return [
+            'summary' => trim((string) ($status['summary'] ?? '')),
+            'details' => is_array($status['details'] ?? null) ? $status['details'] : [],
+        ];
     }
 }

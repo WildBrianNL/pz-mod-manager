@@ -69,6 +69,8 @@ world-loading crashes, and pending downloads.
 - Titles, categories and thumbnails from Steam.
 - Installed version, install date, and an *update available* badge when Steam has
   a newer build than the files on disk.
+- Auto-update status card with a verbose toggle that shows the latest
+  check summary and detailed step-by-step diagnostics.
 - Workshop changelog viewer.
 - Restart the server from the page (respects the `control.restart` permission).
 - English and Dutch, through standard Laravel language files.
