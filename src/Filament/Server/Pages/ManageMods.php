@@ -16,6 +16,7 @@ use WildBrianNL\PZModManager\Services\PowerService;
 use WildBrianNL\PZModManager\Services\StateStore;
 use WildBrianNL\PZModManager\Services\SteamClient;
 use Illuminate\Support\Facades\Cache;
+use Carbon\Carbon;
 
 class ManageMods extends Page
 {
@@ -975,8 +976,8 @@ class ManageMods extends Page
 
         $this->autoUpdate = [
             'state' => $state,
-            'checked_at' => $checkedAt > 0 ? now()->setTimestamp($checkedAt)->format('Y-m-d H:i:s') : null,
-            'pending_at' => $pendingAt > now()->timestamp ? now()->setTimestamp($pendingAt)->format('Y-m-d H:i:s') : null,
+            'checked_at' => $checkedAt > 0 ? Carbon::createFromTimestamp($checkedAt)->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s') : null,
+            'pending_at' => $pendingAt > now()->timestamp ? Carbon::createFromTimestamp($pendingAt)->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s') : null,
         ];
     }
 
