@@ -122,4 +122,46 @@ class LogInspector
             'build' => $build,
         ];
     }
+
+    public function latestPlayersCount(Server $server): ?int
+    {
+        $repo = $this->files->setServer($server);
+
+        try {
+            $entries = $repo->getDirectory('.cache/Logs');
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        $latest = null;
+        $latestAt = '';
+        foreach ($entries as $entry) {
+            $name = (string) ($entry['name'] ?? '');
+            $at = (string) ($entry['modified'] ?? '');
+            if (str_contains($name, 'DebugLog-server') && $at >= $latestAt) {
+                $latest = $name;
+                $latestAt = $at;
+            }
+        }
+        if ($latest === null) {
+            return null;
+        }
+
+        try {
+            $content = (string) $repo->getContent(".cache/Logs/$latest", 8_000_000);
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        $count = null;
+        foreach (preg_split('/\r\n|\r|\n/', $content) as $line) {
+            if (preg_match('/Players connected\s*\((\d+)\)/i', $line, $m)) {
+                $count = (int) $m[1];
+            } elseif (preg_match('/\bplayers?\s*:\s*(\d+)\b/i', $line, $m)) {
+                $count = (int) $m[1];
+            }
+        }
+
+        return $count;
+    }
 }
