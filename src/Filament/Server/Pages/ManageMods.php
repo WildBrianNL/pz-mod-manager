@@ -57,6 +57,9 @@ class ManageMods extends Page
     /** @var array<string,int> */
     public array $stats = ['active' => 0, 'available' => 0, 'restart' => 0, 'errors' => 0];
 
+    /** @var array{state:string,checked_at:?string,pending_at:?string} */
+    public array $autoUpdate = ['state' => 'idle', 'checked_at' => null, 'pending_at' => null];
+
     public string $search = '';
 
     public string $newMod = '';
@@ -132,6 +135,7 @@ class ManageMods extends Page
     public function load(): void
     {
         $server = $this->getServer();
+        $this->loadAutoUpdateStatus($server);
 
         $ini = app(IniService::class)->read($server);
         $this->configError = $ini['error'];
@@ -945,9 +949,45 @@ class ManageMods extends Page
         Notification::make()->title(trans('pzmm::messages.notify.refreshed'))->success()->send();
     }
 
+    public function refreshAutoUpdateStatus(): void
+    {
+        $this->loadAutoUpdateStatus($this->getServer());
+    }
+
     private function forgetCaches(): void
     {
         Cache::forget("pzmm:log:{$this->getServer()->id}");
+    }
+
+    private function loadAutoUpdateStatus(Server $server): void
+    {
+        $pendingAt = (int) Cache::get($this->pendingRestartKey($server), 0);
+        $status = Cache::get($this->autoUpdateStatusKey($server), []);
+
+        $state = (string) ($status['state'] ?? '');
+        if ($state === '') {
+            $state = $pendingAt > now()->timestamp ? 'pending_restart' : 'idle';
+        }
+
+        $checkedAt = (int) ($status['checked_at'] ?? 0);
+        $statusPendingAt = (int) ($status['pending_at'] ?? 0);
+        $pendingAt = max($pendingAt, $statusPendingAt);
+
+        $this->autoUpdate = [
+            'state' => $state,
+            'checked_at' => $checkedAt > 0 ? now()->setTimestamp($checkedAt)->format('Y-m-d H:i:s') : null,
+            'pending_at' => $pendingAt > now()->timestamp ? now()->setTimestamp($pendingAt)->format('Y-m-d H:i:s') : null,
+        ];
+    }
+
+    private function autoUpdateStatusKey(Server $server): string
+    {
+        return "pzmm:auto-update:status:{$server->id}";
+    }
+
+    private function pendingRestartKey(Server $server): string
+    {
+        return "pzmm:auto-update:pending-restart:{$server->id}";
     }
 
     // ------------------------------------------------------------------ view

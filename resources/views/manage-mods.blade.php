@@ -45,6 +45,35 @@
         @endforeach
     </div>
 
+    @php
+        $autoState = $autoUpdate['state'] ?? 'idle';
+        $autoTone = match ($autoState) {
+            'pending_restart' => ['border' => 'rgba(245,158,11,.4)', 'bg' => 'rgba(245,158,11,.06)', 'text' => '#d97706', 'icon' => 'tabler-clock-hour-4'],
+            'restarting' => ['border' => 'rgba(59,130,246,.4)', 'bg' => 'rgba(59,130,246,.06)', 'text' => '#2563eb', 'icon' => 'tabler-reload'],
+            'check_failed' => ['border' => 'rgba(239,68,68,.4)', 'bg' => 'rgba(239,68,68,.06)', 'text' => '#dc2626', 'icon' => 'tabler-alert-triangle'],
+            'checking' => ['border' => 'rgba(59,130,246,.4)', 'bg' => 'rgba(59,130,246,.06)', 'text' => '#2563eb', 'icon' => 'tabler-refresh'],
+            default => ['border' => 'rgba(34,197,94,.35)', 'bg' => 'rgba(34,197,94,.06)', 'text' => '#16a34a', 'icon' => 'tabler-circle-check'],
+        };
+    @endphp
+    <div wire:poll.30s="refreshAutoUpdateStatus"
+         style="border:1px solid {{ $autoTone['border'] }};background:{{ $autoTone['bg'] }};border-radius:12px;padding:.65rem .8rem;display:flex;align-items:flex-start;gap:.55rem;">
+        <x-filament::icon :icon="$autoTone['icon']" style="width:16px;height:16px;flex:0 0 16px;color:{{ $autoTone['text'] }};margin-top:1px;" />
+        <div style="min-width:0;line-height:1.45;">
+            <div style="font-size:.8rem;font-weight:600;color:{{ $autoTone['text'] }};">
+                {{ trans('pzmm::messages.auto_update.title') }}
+            </div>
+            <div style="font-size:.78rem;color:{{ $autoTone['text'] }};">
+                {{ trans('pzmm::messages.auto_update.state.' . $autoState) }}
+            </div>
+            @if ($autoUpdate['pending_at'])
+                <div style="font-size:.72rem;opacity:.8;">{{ trans('pzmm::messages.auto_update.pending_at', ['time' => $autoUpdate['pending_at']]) }}</div>
+            @endif
+            @if ($autoUpdate['checked_at'])
+                <div style="font-size:.72rem;opacity:.8;">{{ trans('pzmm::messages.auto_update.last_checked', ['time' => $autoUpdate['checked_at']]) }}</div>
+            @endif
+        </div>
+    </div>
+
     {{-- Toolbar --}}
     <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;">
         <input type="search" wire:model.live.debounce.250ms="search" placeholder="{{ trans('pzmm::messages.search') }}"
