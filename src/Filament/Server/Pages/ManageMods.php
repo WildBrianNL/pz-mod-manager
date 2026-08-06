@@ -59,6 +59,13 @@ class ManageMods extends Page
 
     public string $search = '';
 
+    /**
+     * Mod ids ticked for a bulk action, from either section.
+     *
+     * @var string[]
+     */
+    public array $selected = [];
+
     public string $newMod = '';
 
     public bool $activateOnAdd = true;
@@ -909,6 +916,167 @@ class ManageMods extends Page
             ->success()
             ->persistent()
             ->send();
+    }
+
+    // ------------------------------------------------------------------ bulk
+
+    /**
+     * Tick or untick every row currently visible in a section.
+     *
+     * Visible, not every mod that exists. The search box is the only practical
+     * way to narrow a list of a hundred and twenty, and a select-all that
+     * silently reached past the filter would be the most dangerous control on
+     * the page: you would tick eight vehicle mods and delete all of them.
+     */
+    public function selectAll(string $scope): void
+    {
+        $rows = $scope === 'active'
+            ? $this->activeFiltered()
+            : array_merge([], ...array_values($this->availableByCategory()));
+        $ids = array_column($rows, 'mod_id');
+        if (!$ids) {
+            return;
+        }
+
+        $selected = array_flip($this->selected);
+        // Ticking a section that is already fully ticked unticks it, so the same
+        // control does both and there is no second button to hunt for.
+        $allOn = !array_diff($ids, $this->selected);
+        foreach ($ids as $id) {
+            if ($allOn) {
+                unset($selected[$id]);
+            } else {
+                $selected[$id] = true;
+            }
+        }
+        $this->selected = array_keys($selected);
+    }
+
+    public function clearSelection(): void
+    {
+        $this->selected = [];
+    }
+
+    public function bulkActivate(): void
+    {
+        abort_unless($this->canWrite(), 403);
+
+        $ids = $this->currentModIds();
+        $before = count($ids);
+        foreach ($this->selected as $modId) {
+            if (!in_array($modId, $ids, true)) {
+                $ids[] = $modId;
+            }
+        }
+        $count = count($ids) - $before;
+        if ($count === 0) {
+            Notification::make()->title(trans('pzmm::messages.notify.bulk_nothing'))->warning()->send();
+
+            return;
+        }
+
+        $this->selected = [];
+        $this->persist($ids);
+        Notification::make()
+            ->title(trans_choice('pzmm::messages.notify.bulk_enabled', $count, ['count' => $count]))
+            ->success()->send();
+    }
+
+    public function bulkDeactivate(): void
+    {
+        abort_unless($this->canWrite(), 403);
+
+        $drop = array_flip($this->selected);
+        $current = $this->currentModIds();
+        $keep = array_values(array_filter($current, fn ($id) => !isset($drop[$id])));
+        $count = count($current) - count($keep);
+        if ($count === 0) {
+            Notification::make()->title(trans('pzmm::messages.notify.bulk_nothing'))->warning()->send();
+
+            return;
+        }
+
+        $this->selected = [];
+        $this->persist($keep);
+        Notification::make()
+            ->title(trans_choice('pzmm::messages.notify.bulk_disabled', $count, ['count' => $count]))
+            ->success()->send();
+    }
+
+    /**
+     * Delete every selected mod in one pass.
+     *
+     * One config write and one delete call, not a loop over remove(). Removing
+     * forty mods one at a time would be forty reads, forty writes and forty
+     * Wings round trips, and a failure halfway would leave the ini describing
+     * mods whose files are already gone.
+     */
+    public function bulkRemove(): void
+    {
+        abort_unless($this->canWrite(), 403);
+        if (!$this->selected) {
+            return;
+        }
+
+        $server = $this->getServer();
+        $ini = app(IniService::class)->read($server);
+        if (!$ini['ok']) {
+            Notification::make()->title(trans('pzmm::messages.notify.config_error'))->danger()->send();
+
+            return;
+        }
+
+        $rows = array_merge($this->active, $this->available);
+        $chosen = array_flip($this->selected);
+
+        // A Workshop item can carry several mods. Deleting the item takes all of
+        // them with it, so its siblings have to leave the config as well or it
+        // would go on listing mods whose files no longer exist.
+        $workshopIds = [];
+        foreach ($rows as $row) {
+            if (isset($chosen[$row['mod_id']]) && ($row['workshop_id'] ?? '') !== '') {
+                $workshopIds[$row['workshop_id']] = true;
+            }
+        }
+        $doomed = $chosen;
+        foreach ($rows as $row) {
+            if (($row['workshop_id'] ?? '') !== '' && isset($workshopIds[$row['workshop_id']])) {
+                $doomed[$row['mod_id']] = true;
+            }
+        }
+
+        $items = array_values(array_filter($ini['workshopItems'], fn ($w) => !isset($workshopIds[$w])));
+        $mods = array_values(array_filter($ini['mods'], fn ($m) => !isset($doomed[$m])));
+        app(IniService::class)->write($server, $items, $mods);
+
+        $filesKept = false;
+        if ($workshopIds) {
+            try {
+                // Cast back to strings. Workshop ids are numeric, and PHP turns a
+                // numeric string used as an array key into an int, so array_keys
+                // hands back integers. Wings wants strings and rejects the whole
+                // request with "cannot unmarshal number into Go struct field
+                // .files of type string", which surfaced as a successful config
+                // write followed by files that were still there.
+                $paths = array_map('strval', array_keys($workshopIds));
+                app(DaemonFileRepository::class)->setServer($server)
+                    ->deleteFiles('/steamapps/workshop/content/' . ModScanner::APP_ID, $paths);
+            } catch (\Throwable $e) {
+                $filesKept = true;
+            }
+        }
+
+        $count = count($doomed);
+        $this->selected = [];
+        $this->forgetCaches();
+        $this->load();
+
+        if ($filesKept) {
+            Notification::make()->title(trans('pzmm::messages.notify.files_kept'))->warning()->send();
+        }
+        Notification::make()
+            ->title(trans_choice('pzmm::messages.notify.bulk_removed', $count, ['count' => $count]))
+            ->success()->send();
     }
 
     public function restartServer(): void

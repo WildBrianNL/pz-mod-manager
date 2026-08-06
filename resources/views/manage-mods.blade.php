@@ -76,6 +76,33 @@
     </div>
 
     {{-- Alerts --}}
+    @if ($this->canWrite() && count($selected))
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.5rem .75rem;margin-bottom:.75rem;
+                    border:1px solid rgba(245,158,11,.35);border-radius:.5rem;background:rgba(245,158,11,.08);">
+            <span style="font-size:.8125rem;font-weight:600;">
+                {{ trans_choice('pzmm::messages.bulk.selected', count($selected), ['count' => count($selected)]) }}
+            </span>
+            <span style="flex:1;"></span>
+            <x-filament::button size="xs" color="gray" icon="tabler-circle-plus"
+                wire:click="bulkActivate" wire:target="bulkActivate" wire:loading.attr="disabled">
+                {{ trans('pzmm::messages.bulk.enable') }}
+            </x-filament::button>
+            <x-filament::button size="xs" color="warning" icon="tabler-circle-minus"
+                wire:click="bulkDeactivate" wire:target="bulkDeactivate" wire:loading.attr="disabled"
+                wire:confirm="{{ trans('pzmm::messages.confirm.bulk_disable') }}">
+                {{ trans('pzmm::messages.bulk.disable') }}
+            </x-filament::button>
+            <x-filament::button size="xs" color="danger" icon="tabler-trash"
+                wire:click="bulkRemove" wire:target="bulkRemove" wire:loading.attr="disabled"
+                wire:confirm="{{ trans('pzmm::messages.confirm.bulk_delete') }}">
+                {{ trans('pzmm::messages.bulk.delete') }}
+            </x-filament::button>
+            <x-filament::button size="xs" color="gray" wire:click="clearSelection">
+                {{ trans('pzmm::messages.bulk.clear') }}
+            </x-filament::button>
+        </div>
+    @endif
+
     @if (count($alerts))
         <div style="display:flex;flex-direction:column;gap:.4rem;">
             @foreach ($alerts as $alert)
@@ -100,11 +127,17 @@
         <x-slot name="heading">
             <span style="font-size:.875rem;font-weight:600;">{{ trans('pzmm::messages.section.active') }}</span>
             <span style="font-size:11px;font-weight:400;opacity:.6;">{{ trans('pzmm::messages.section.active_hint') }}</span>
+            @if ($this->canWrite())
+                <button type="button" wire:click="selectAll('active')"
+                        style="font-size:11px;font-weight:400;opacity:.7;text-decoration:underline;margin-left:.5rem;">
+                    {{ trans('pzmm::messages.bulk.select_all') }}
+                </button>
+            @endif
         </x-slot>
 
         @php $activeRows = $this->activeFiltered(); $activeCount = count($activeRows); @endphp
         <div wire:loading.class="fi-disabled" style="transition:opacity .15s;"
-             wire:target="activate,deactivate,move,reorder,toggleLock,autoSort,remove,refresh,addMod,removeOrphans,addMapsToConfig"
+             wire:target="activate,deactivate,move,reorder,toggleLock,autoSort,remove,refresh,addMod,removeOrphans,addMapsToConfig,bulkActivate,bulkDeactivate,bulkRemove"
              x-data="{
                  from: null,
                  start(i, e) { this.from = i; e.dataTransfer.effectAllowed = 'move'; },
@@ -138,6 +171,13 @@
                          x-on:drop="drop({{ $i }}, $event)"
                          x-on:dragend="from = null"
                      @endif>
+                    @if ($this->canWrite())
+                        {{-- Outside the drag handle on purpose: a checkbox that
+                             starts a drag cannot be ticked with the mouse. --}}
+                        <input type="checkbox" value="{{ $row['mod_id'] }}" wire:model.live="selected"
+                               draggable="false" x-on:dragstart.stop
+                               style="flex:0 0 auto;width:15px;height:15px;cursor:pointer;" />
+                    @endif
                     @if ($this->canWrite() && $search === '')
                         <div style="display:flex;flex-direction:column;line-height:.7;font-size:10px;opacity:.45;flex:none;">
                             <button type="button" wire:click="move({{ \Illuminate\Support\Js::from($row['mod_id']) }},'up')" @disabled($i === 0) style="padding:1px 2px;">▲</button>
@@ -217,9 +257,15 @@
         <x-slot name="heading">
             <span style="font-size:.875rem;font-weight:600;">{{ trans('pzmm::messages.section.available') }}</span>
             <span style="font-size:11px;font-weight:400;opacity:.6;">{{ trans('pzmm::messages.section.available_hint') }}</span>
+            @if ($this->canWrite())
+                <button type="button" wire:click="selectAll('available')"
+                        style="font-size:11px;font-weight:400;opacity:.7;text-decoration:underline;margin-left:.5rem;">
+                    {{ trans('pzmm::messages.bulk.select_all') }}
+                </button>
+            @endif
         </x-slot>
 
-        <div wire:loading.class="fi-disabled" wire:target="activate,remove,refresh,addMod">
+        <div wire:loading.class="fi-disabled" wire:target="activate,remove,refresh,addMod,bulkActivate,bulkDeactivate,bulkRemove">
             @forelse ($this->availableByCategory() as $category => $rows)
                 <div style="margin-top:.6rem;">
                     <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;opacity:.5;margin-bottom:.2rem;">
@@ -227,6 +273,10 @@
                     </div>
                     @foreach ($rows as $row)
                         <div style="{{ $rowGap }}border-bottom:1px solid rgba(128,128,128,.12);" wire:key="v-{{ $row['mod_id'] }}">
+                            @if ($this->canWrite())
+                                <input type="checkbox" value="{{ $row['mod_id'] }}" wire:model.live="selected"
+                                       style="flex:0 0 auto;width:15px;height:15px;cursor:pointer;" />
+                            @endif
                             @if ($row['preview'])
                                 <img src="{{ $row['preview'] }}" alt="" loading="lazy" style="{{ $thumb }}opacity:.65;" />
                             @else

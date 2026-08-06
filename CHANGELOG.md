@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.4.0
+
+- **Bulk selection.** Tick mods in either list and enable, disable or delete the
+  whole selection in one action. *Select all shown* follows the search box
+  rather than reaching past it: on a list of a hundred and twenty mods, a
+  select-all that ignores the filter is the most dangerous control on the page.
+- A bulk delete is one config write and one Wings call, not one per mod. Looping
+  the single-mod path would mean forty reads, forty writes and forty round
+  trips, and a failure halfway would leave the config describing files that no
+  longer exist.
+- Deleting a mod that shares a Workshop item with others now takes its siblings
+  out of the config too, because the item's files leave as a unit.
+- Framework mods are hoisted to the front of `Mods=` on every write. Project
+  Zomboid silently skips a mod whose dependency has not loaded yet, and a list
+  rebuilt from a directory scan could otherwise leave a framework sitting behind
+  the mods that need it. Ids are listed in `IniService::PRIORITY_MODS`.
+
 ## 2.3.0
 
 - Lock a mod to its load-order position. Auto-sort works around locked mods

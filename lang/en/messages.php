@@ -97,10 +97,21 @@ return [
         'updates' => '{1} :count mod has a newer version on Steam — restart the server to update it.|[2,*] :count mods have a newer version on Steam — restart the server to update them.',
     ],
 
+    'bulk' => [
+        'selected' => '{1} :count mod selected|[2,*] :count mods selected',
+        'select_all' => 'select all shown',
+        'enable' => 'Enable',
+        'disable' => 'Disable',
+        'delete' => 'Delete',
+        'clear' => 'Clear',
+    ],
+
     'confirm' => [
         'restart' => 'Restart the server now? Players who are online will be disconnected.',
         'disable' => 'Disable this mod? Clients will stop downloading it. The files stay on the server so you can switch it back on.',
         'delete' => 'Delete this mod and its files from the server? This cannot be undone.',
+        'bulk_disable' => 'Disable every selected mod? Clients stop downloading them, the files stay on the server.',
+        'bulk_delete' => 'Delete every selected mod and its files from the server? This cannot be undone.',
     ],
 
     'empty' => [
@@ -122,6 +133,10 @@ return [
         'already_added' => 'That workshop item was already added.',
         'invalid_id' => 'No valid Workshop ID found in that input.',
         'removed' => 'Removed and files deleted.',
+        'bulk_enabled' => '{1} :count mod enabled|[2,*] :count mods enabled',
+        'bulk_disabled' => '{1} :count mod disabled|[2,*] :count mods disabled',
+        'bulk_removed' => '{1} :count mod removed and files deleted|[2,*] :count mods removed and files deleted',
+        'bulk_nothing' => 'Nothing to do: the selection was already in that state.',
         'disabled' => 'Disabled — clients will no longer download it.',
         'files_kept' => 'Removed from the config, but the files could not be deleted.',
         'refreshed' => 'Refreshed.',

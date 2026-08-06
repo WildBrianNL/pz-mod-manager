@@ -42,6 +42,8 @@ return [
         'bundled' => 'gebundeld — zelfde Workshop-item als :title, verwijderen haalt beide weg',
         'disable' => 'Uitzetten — clients downloaden hem niet meer, bestanden blijven op de server',
         'delete' => 'Verwijderen — haalt de mod én de bestanden van de server',
+        'bulk_disable' => 'Alle geselecteerde mods uitschakelen? Clients downloaden ze niet meer, de bestanden blijven op de server staan.',
+        'bulk_delete' => 'Alle geselecteerde mods en hun bestanden van de server verwijderen? Dit kan niet ongedaan worden gemaakt.',
         'changelog' => 'Changelog tonen',
     ],
 
@@ -97,6 +99,15 @@ return [
         'updates' => '{1} :count mod heeft een nieuwere versie op Steam — herstart de server om bij te werken.|[2,*] :count mods hebben een nieuwere versie op Steam — herstart de server om bij te werken.',
     ],
 
+    'bulk' => [
+        'selected' => '{1} :count mod geselecteerd|[2,*] :count mods geselecteerd',
+        'select_all' => 'alles hieronder selecteren',
+        'enable' => 'Inschakelen',
+        'disable' => 'Uitschakelen',
+        'delete' => 'Verwijderen',
+        'clear' => 'Selectie wissen',
+    ],
+
     'confirm' => [
         'restart' => 'Server nu herstarten? Spelers die online zijn worden losgekoppeld.',
         'disable' => 'Deze mod uitzetten? Clients downloaden hem dan niet meer. De bestanden blijven staan zodat je hem zo weer aan kunt zetten.',
@@ -122,6 +133,10 @@ return [
         'already_added' => 'Dat workshop-item stond er al in.',
         'invalid_id' => 'Geen geldig Workshop-ID gevonden in die invoer.',
         'removed' => 'Verwijderd en bestanden gewist.',
+        'bulk_enabled' => '{1} :count mod ingeschakeld|[2,*] :count mods ingeschakeld',
+        'bulk_disabled' => '{1} :count mod uitgeschakeld|[2,*] :count mods uitgeschakeld',
+        'bulk_removed' => '{1} :count mod verwijderd en bestanden gewist|[2,*] :count mods verwijderd en bestanden gewist',
+        'bulk_nothing' => 'Niets te doen: de selectie stond al zo.',
         'disabled' => 'Uitgezet — clients downloaden hem niet meer.',
         'files_kept' => 'Uit de config gehaald, maar de bestanden konden niet gewist worden.',
         'refreshed' => 'Vernieuwd.',

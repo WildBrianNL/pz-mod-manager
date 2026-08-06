@@ -70,7 +70,21 @@ class IniService
     }
 
     /**
-     * Persist mod state. Values are de-duplicated but order is preserved.
+     * Mods hoisted to the front of Mods= on every write, in this order.
+     *
+     * Project Zomboid loads mods in Mods= order and silently drops any mod
+     * whose `require=` target has not loaded yet ("required mod X not found").
+     * Frameworks that others depend on must therefore never drift behind them,
+     * which is exactly what happens when the list is rebuilt from a directory
+     * scan. Add further framework ids here; unknown ids are ignored.
+     */
+    private const PRIORITY_MODS = [
+        'storm-core-b42',
+    ];
+
+    /**
+     * Persist mod state. Values are de-duplicated but order is preserved,
+     * except for the framework mods hoisted to the front by hoistFrameworks().
      *
      * @param  string[]  $workshopItems
      * @param  string[]  $mods
@@ -86,7 +100,7 @@ class IniService
 
         $raw = $current['raw'];
         $raw = $this->replace($raw, 'WorkshopItems', $this->join($workshopItems));
-        $raw = $this->replace($raw, 'Mods', $this->join($mods));
+        $raw = $this->replace($raw, 'Mods', $this->join($this->hoistFrameworks($mods)));
         if ($maps !== null) {
             $raw = $this->replace($raw, 'Map', $this->join($maps));
         }
@@ -103,6 +117,33 @@ class IniService
         return strlen($raw) > 200
             && str_contains($raw, 'Mods=')
             && str_contains($raw, 'WorkshopItems=');
+    }
+
+    /**
+     * Move PRIORITY_MODS to the front, keeping every other mod in its
+     * existing relative order. Only hoists ids that are already enabled -
+     * this never adds a mod the caller did not ask for.
+     *
+     * @param  string[]  $mods
+     * @return string[]
+     */
+    private function hoistFrameworks(array $mods): array
+    {
+        $front = array_values(array_filter(
+            self::PRIORITY_MODS,
+            fn ($id) => in_array($id, $mods, true)
+        ));
+
+        if ($front === []) {
+            return $mods;
+        }
+
+        $rest = array_values(array_filter(
+            $mods,
+            fn ($m) => !in_array($m, $front, true)
+        ));
+
+        return [...$front, ...$rest];
     }
 
     /** @param string[] $values */

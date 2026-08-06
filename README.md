@@ -53,6 +53,15 @@ loaded, so every mod reports the truth:
   each `mod.info`, with frameworks first.
 - Warns when the load order has changed but has not been applied yet.
 
+**Working in bulk**
+- Tick mods in either list and enable, disable or delete the whole selection in
+  one action.
+- *Select all shown* follows the search box, so it never reaches past what you
+  are looking at.
+- A bulk delete is one config write and one delete call, not one per mod, and
+  mods sharing a Workshop item are taken out together because their files leave
+  together.
+
 **Keeping the config correct**
 - Workshop IDs missing from `WorkshopItems=` are restored automatically.
 - Duplicate entries are removed.
