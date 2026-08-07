@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.4.1
+
+- **In-panel update notifications.** The plugin now declares an `update_url`, so
+  Pelican checks for new releases itself, marks the row in the admin plugin list
+  when one exists, and offers its own update button. No new code in the plugin:
+  the panel has had this machinery all along and this release simply points at
+  the manifest it was waiting for.
+
+  Two caveats. Pelican disables update checks entirely on `canary` panels, so
+  nothing appears there and nothing fails either. And the notice only reaches
+  installs that already carry an `update_url`, so 2.4.0 will not announce this
+  release: update to 2.4.1 by hand once, and later versions arrive on their own.
+
 ## 2.4.0
 
 - **Bulk selection.** Tick mods in either list and enable, disable or delete the

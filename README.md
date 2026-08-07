@@ -123,6 +123,28 @@ docker exec pelican-panel-1 php artisan p:plugin:install pz-mod-manager
 docker exec pelican-panel-1 php artisan optimize:clear
 ```
 
+## Updating
+
+From 2.4.1 the panel handles this itself. `plugin.json` declares an
+`update_url`, Pelican fetches it every ten minutes, compares the version there
+against the installed one, and flags the row on the admin plugin list when a
+newer release exists. Updating is the button next to that flag, or:
+
+```bash
+php artisan p:plugin:update pz-mod-manager
+```
+
+Two things are worth knowing before waiting for a notice that will not come.
+
+**Update checks are disabled on canary panels.** Pelican returns early when
+`config('app.version')` is `canary`, both for the check and for the download
+URL, so nothing appears and nothing errors either. Tagged panel releases are
+fine.
+
+**Installs older than 2.4.1 will not announce it.** They carry
+`"update_url": null`, so there is nothing for the panel to poll. Update by hand
+once; every release after this one arrives on its own.
+
 ## Permissions
 
 | Action | Required subuser permission |
@@ -156,6 +178,11 @@ The folder inside the zip must be named `pz-mod-manager`:
 ```bash
 zip -r pz-mod-manager.zip pz-mod-manager -x '*.git*'
 ```
+
+`update.json` on `main` is what every installed copy polls, so it has to name a
+release that already exists. Publish the release and its `pz-mod-manager.zip`
+asset first, then update the manifest. The other order points every install at a
+download that 404s, and the update button fails for everyone until it is fixed.
 
 ## Contributing
 
