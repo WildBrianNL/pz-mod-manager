@@ -8,7 +8,7 @@ It adds a **Mods** page to the server panel. The page is visible to anyone with
 file access to the server — not just admins — and only appears for Project
 Zomboid servers.
 
-![Mods page](docs/screenshot.png)
+![The Mods page, with its main features numbered: real load status, adding by ID or collection, auto-sort, alerts that carry their own fix, bulk selection, load-order locks, per-mod update detection and per-mod actions](docs/hero.png)
 
 ## Why
 
