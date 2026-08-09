@@ -313,16 +313,43 @@ and are edited on the page itself; see [Every setting](#every-setting).
 
 ## Building a release zip
 
-The folder inside the zip must be named `pz-mod-manager`:
+The folder inside the zip must be named `pz-mod-manager`, and the dev tooling
+stays out of it:
 
 ```bash
-zip -r pz-mod-manager.zip pz-mod-manager -x '*.git*'
+mkdir -p /tmp/rel/pz-mod-manager
+git archive main | tar -x -C /tmp/rel/pz-mod-manager
+cd /tmp/rel
+rm -rf pz-mod-manager/tests pz-mod-manager/lint.sh pz-mod-manager/check.py
+zip -r pz-mod-manager.zip pz-mod-manager
 ```
+
+`tests/stubs.php` in particular declares classes named `App\Models\Server` and
+`Illuminate\Support\Facades\Log` so the phase tests can run without a panel.
+They are never autoloaded, since only `src/` is mapped to the namespace, but
+shipping them inside a live panel is not worth the argument.
 
 `update.json` on `main` is what every installed copy polls, so it has to name a
 release that already exists. Publish the release and its `pz-mod-manager.zip`
 asset first, then update the manifest. The other order points every install at a
 download that 404s, and the update button fails for everyone until it is fixed.
+
+## Development
+
+`lint.sh` runs everything that needs a PHP: syntax on every file, the Blade
+template compiled and then linted, and the unit tests. It borrows the interpreter
+from a panel container over SSH, because the machine this was written on has no
+PHP:
+
+```bash
+PZMM_HOST=user@panel-host ./lint.sh
+```
+
+`check.py` catches what `php -l` cannot: a translation key used but never
+defined, a `wire:click` pointing at a method that does not exist, a `wire:model`
+bound to a property that is not there, and a settings field missing from
+`StateStore::AUTO_DEFAULTS`. None of those fail loudly at runtime; they render a
+raw key, or do nothing when clicked.
 
 ## Contributing
 
