@@ -111,8 +111,8 @@ default, per server.
 What happens when something is outdated:
 
 1. Everyone in game is warned, five minutes ahead by default.
-2. The world is saved and a panel backup starts, so the snapshot holds a saved
-   game rather than whatever was in memory.
+2. The world is saved and a backup of that server starts, so the snapshot holds
+   a saved game rather than whatever was in memory.
 3. A second warning goes out a minute before.
 4. A ten second countdown, then the server restarts through the normal power
    action, so the egg's own `quit` saves and shuts down cleanly.
@@ -125,6 +125,15 @@ costing five restarts. An empty message means "say nothing".
 If nobody is online the warnings and countdown are skipped, because there is
 nobody to warn.
 
+The backup is an ordinary backup of that one game server: the same thing you get
+from **Backups** on the server, made by the same service the panel's own button
+calls, appearing in the same list and counting against the same limit. It is not
+a backup of the panel or of anything else on the node.
+
+If the server is at its backup limit, the panel's own rotation applies and the
+oldest **unlocked** backup is removed to make room. A backup you locked is never
+touched, so pin anything you want to keep.
+
 ### Every setting
 
 | Setting | Default | Range | What it does |
@@ -135,7 +144,7 @@ nobody to warn.
 | Final countdown | 10 s | 0 to 60 | Messages once a second just before the restart. |
 | Minimum gap between restarts | 60 min | 0 to 1440 | No second automatic restart inside this window, whatever is found. |
 | Wait for backup up to | 120 s | 0 to 900 | How long a restart may wait for its backup before going ahead anyway. |
-| Back up before restarting | on | on/off | Saves the world, then starts a panel backup. |
+| Back up before restarting | on | on/off | Saves the world, then backs up the server. |
 | Also check for game updates | on | on/off | Watches the installed build as well as the mods. |
 | First warning | text | | Sent when the window opens. |
 | One minute warning | text | | Sent a minute before. |

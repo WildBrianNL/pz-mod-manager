@@ -493,7 +493,11 @@ class AutoUpdateService
     // ----------------------------------------------------------------- backup
 
     /**
-     * Kick off a panel backup and return its id.
+     * Kick off a backup of this game server and return its id.
+     *
+     * The same service the panel's own Backups button calls, with the same
+     * server, so the result is an ordinary server backup in the same list and
+     * against the same limit. Nothing here backs up the panel.
      *
      * `override` lets the panel rotate its own oldest unlocked backup when the
      * server is at its limit, which is the difference between a backup every

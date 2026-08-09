@@ -9,7 +9,8 @@
   connect. Only a restart clears it.
 
   With this on, the plugin checks Steam on an interval, and when something is
-  outdated it warns everyone in game, takes a backup, counts down and restarts.
+  outdated it warns everyone in game, backs the server up, counts down and
+  restarts.
   Off by default: this restarts servers.
 
 - **It refuses to run without AUTO_UPDATE.** The steamcmd images only re-run
@@ -28,7 +29,9 @@
   server should restart on the word of an endpoint that might be down.
 
 - Backups start at the first warning, right after a `save` so the snapshot holds
-  a saved world rather than whatever was in memory. The restart waits a bounded
+  a saved world rather than whatever was in memory. It is an ordinary backup of
+  that game server, made by the same service the panel's own Backups button
+  calls, and it lands in the same list against the same limit. The restart waits a bounded
   amount of time for the backup and then goes ahead regardless, so a slow backup
   can delay a restart but not hold one hostage.
 
