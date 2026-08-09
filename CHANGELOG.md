@@ -1,5 +1,52 @@
 # Changelog
 
+## 2.5.0
+
+- **Auto-restart when Steam has a newer version.** A Workshop mod that updates
+  while the server is running leaves the server on the old files, and Project
+  Zomboid then refuses to let new players join. Existing players notice nothing,
+  so the server looks fine while quietly turning away everyone who tries to
+  connect. Only a restart clears it.
+
+  With this on, the plugin checks Steam on an interval, and when something is
+  outdated it warns everyone in game, takes a backup, counts down and restarts.
+  Off by default: this restarts servers.
+
+- **It refuses to run without AUTO_UPDATE.** The steamcmd images only re-run
+  steamcmd on boot when that egg variable is 1. Without it a restart downloads
+  nothing, the update is still outstanding afterwards, and the next check
+  restarts again, forever. The settings panel checks the variable, refuses to
+  switch the feature on without it, and offers to set it.
+
+- **One attempt, then it stops.** After restarting, the plugin waits for the
+  server to come back and checks whether the update actually landed. If it did
+  not, it disables itself and says why instead of trying again.
+
+- **Game updates too.** The installed build id comes from
+  `appmanifest_<appid>.acf` on disk and is compared against the public branch. If
+  that lookup fails the check is skipped rather than guessed at, because no
+  server should restart on the word of an endpoint that might be down.
+
+- Backups start at the first warning, right after a `save` so the snapshot holds
+  a saved world rather than whatever was in memory. The restart waits a bounded
+  amount of time for the backup and then goes ahead regardless, so a slow backup
+  can delay a restart but not hold one hostage.
+
+- Warning text, timings, countdown length and the gap between restarts are all
+  settings, per server, stored beside the server files rather than in the panel
+  config. Two servers on one panel can use different windows, and
+  `optimize:clear` cannot silently re-enable the feature.
+
+- Fixed, Dutch: the two bulk confirmation prompts were filed under `tooltip`
+  instead of `confirm`, so Dutch users saw the English fallback on both.
+
+  Auto-update grew out of [#1](https://github.com/WildBrianNL/pz-mod-manager/pull/1)
+  by [AlfElFriki](https://github.com/AlfElFriki), whose scheduler wiring, player
+  counting and Steam cache-age fix are still in here. Two things changed on the
+  way in: the console command was `say`, which Project Zomboid does not have, so
+  warnings went nowhere; and commands were posted to `/command` rather than
+  Wings' `/commands`.
+
 ## 2.4.1
 
 - **In-panel update notifications.** The plugin now declares an `update_url`, so

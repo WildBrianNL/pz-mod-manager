@@ -9,6 +9,7 @@ use BackedEnum;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use WildBrianNL\PZModManager\Services\AutoUpdateService;
 use WildBrianNL\PZModManager\Services\IniService;
 use WildBrianNL\PZModManager\Services\LogInspector;
 use WildBrianNL\PZModManager\Services\ModScanner;
@@ -56,6 +57,27 @@ class ManageMods extends Page
 
     /** @var array<string,int> */
     public array $stats = ['active' => 0, 'available' => 0, 'restart' => 0, 'errors' => 0];
+
+    /**
+     * Auto-update settings as edited on this page. Bound to inputs, so every
+     * value here is whatever the browser sent; saveAutoUpdate() is what turns it
+     * back into typed, clamped settings.
+     *
+     * @var array<string,mixed>
+     */
+    public array $auto = [];
+
+    /**
+     * Read-only picture of what the scheduler is doing: phase, note, timings.
+     *
+     * @var array<string,mixed>
+     */
+    public array $autoRun = [];
+
+    /** Whether the egg re-runs steamcmd on boot; without it auto-restart is refused. */
+    public bool $eggAutoUpdate = true;
+
+    public bool $autoOpen = false;
 
     public string $search = '';
 
@@ -139,6 +161,7 @@ class ManageMods extends Page
     public function load(): void
     {
         $server = $this->getServer();
+        $this->loadAuto($server);
 
         $ini = app(IniService::class)->read($server);
         $this->configError = $ini['error'];
@@ -1113,9 +1136,148 @@ class ManageMods extends Page
         Notification::make()->title(trans('pzmm::messages.notify.refreshed'))->success()->send();
     }
 
+    // ----------------------------------------------------- auto-update panel
+
+    /**
+     * Read settings and live state from the side-car beside the server.
+     *
+     * Not from the cache. This decides whether a server restarts by itself, and
+     * `artisan optimize:clear` is routine on a panel; a cleared cache must not
+     * quietly re-enable the feature or lose a restart that is half done.
+     */
+    private function loadAuto(Server $server): void
+    {
+        $state = app(StateStore::class)->read($server);
+        $this->auto = $state['auto'];
+        $this->autoRun = $state['run'];
+        $this->eggAutoUpdate = app(AutoUpdateService::class)->autoUpdateEnabled($server);
+    }
+
+    public function refreshAuto(): void
+    {
+        $this->loadAuto($this->getServer());
+    }
+
+    public function toggleAutoPanel(): void
+    {
+        $this->autoOpen = !$this->autoOpen;
+    }
+
+    public function saveAutoUpdate(): void
+    {
+        abort_unless($this->canWrite(), 403);
+        $server = $this->getServer();
+        $service = app(AutoUpdateService::class);
+
+        $wantsOn = (bool) ($this->auto['enabled'] ?? false);
+
+        // The one refusal in this feature. Without AUTO_UPDATE the boot script
+        // never re-runs steamcmd, so a restart downloads nothing, the update is
+        // still outstanding afterwards, and the next check restarts again. That
+        // is a reboot loop, and it is better prevented than detected.
+        if ($wantsOn && !$service->autoUpdateEnabled($server)) {
+            $this->auto['enabled'] = false;
+            $this->persistAuto($server);
+            Notification::make()
+                ->title(trans('pzmm::messages.notify.auto_needs_flag'))
+                ->body(trans('pzmm::messages.notify.auto_needs_flag_body'))
+                ->warning()
+                ->persistent()
+                ->send();
+
+            return;
+        }
+
+        $this->persistAuto($server);
+        Notification::make()->title(trans('pzmm::messages.notify.auto_saved'))->success()->send();
+    }
+
+    /** Set the egg's AUTO_UPDATE variable to 1, which applies at the next start. */
+    public function enableEggAutoUpdate(): void
+    {
+        abort_unless($this->canWrite(), 403);
+        abort_unless((bool) user()?->can(SubuserPermission::StartupUpdate, $this->getServer()), 403);
+
+        if (!app(AutoUpdateService::class)->enableAutoUpdateVariable($this->getServer())) {
+            Notification::make()->title(trans('pzmm::messages.notify.auto_no_flag'))->warning()->send();
+
+            return;
+        }
+
+        $this->loadAuto($this->getServer());
+        Notification::make()
+            ->title(trans('pzmm::messages.notify.auto_flag_set'))
+            ->body(trans('pzmm::messages.notify.auto_flag_set_body'))
+            ->success()
+            ->send();
+    }
+
+    /** Clear a failed state so the operator can switch the feature back on. */
+    public function clearAutoFailure(): void
+    {
+        abort_unless($this->canWrite(), 403);
+        $server = $this->getServer();
+        $state = app(StateStore::class)->read($server);
+        $state['run'] = ['phase' => 'idle', 'last_restart_at' => $state['run']['last_restart_at'] ?? 0];
+        app(StateStore::class)->write($server, $state);
+        $this->loadAuto($server);
+    }
+
+    /** Run the update check now and report what it found, without restarting anything. */
+    public function checkAutoNow(): void
+    {
+        $server = $this->getServer();
+        $found = app(AutoUpdateService::class)->detect($server, $this->auto);
+
+        Notification::make()
+            ->title($found['note'])
+            ->body(implode("\n", array_slice($found['detail'], 0, 8)))
+            ->{$found['reason'] ? 'warning' : 'success'}()
+            ->send();
+    }
+
+    private function persistAuto(Server $server): void
+    {
+        $store = app(StateStore::class);
+        $state = $store->read($server);
+        $state['auto'] = $this->auto;
+        $store->write($server, $state);
+        // Read back, so the form shows the clamped values rather than whatever
+        // was typed into it.
+        $this->loadAuto($server);
+    }
+
     private function forgetCaches(): void
     {
         Cache::forget("pzmm:log:{$this->getServer()->id}");
+    }
+
+    private function loadAutoUpdateStatus(Server $server): void
+    {
+        $pendingAt = (int) Cache::get($this->pendingRestartKey($server), 0);
+        $status = Cache::get($this->autoUpdateStatusKey($server), []);
+
+        $state = (string) ($status['state'] ?? '');
+        if ($state === '') {
+            $state = $pendingAt > now()->timestamp ? 'pending_restart' : 'idle';
+        }
+
+        $checkedAt = (int) ($status['checked_at'] ?? 0);
+        $statusPendingAt = (int) ($status['pending_at'] ?? 0);
+        $summary = trim((string) ($status['summary'] ?? ''));
+        $details = array_values(array_filter(array_map(
+            fn ($line) => trim((string) $line),
+            is_array($status['details'] ?? null) ? $status['details'] : []
+        ), fn ($line) => $line !== ''));
+        $pendingAt = max($pendingAt, $statusPendingAt);
+
+        $this->autoUpdate = [
+            'state' => $state,
+            'checked_at' => $checkedAt > 0 ? Carbon::createFromTimestamp($checkedAt)->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s') : null,
+            'pending_at' => $pendingAt > now()->timestamp ? Carbon::createFromTimestamp($pendingAt)->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s') : null,
+            'summary' => $summary !== '' ? $summary : null,
+            'details' => array_slice($details, 0, 40),
+        ];
     }
 
     // ------------------------------------------------------------------ view

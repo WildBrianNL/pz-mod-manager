@@ -45,6 +45,132 @@
         @endforeach
     </div>
 
+    {{-- Auto-update: status strip, and the settings behind it --}}
+    @php
+        $phase = $autoRun['phase'] ?? 'idle';
+        $on = (bool) ($auto['enabled'] ?? false);
+        // Off is grey rather than green: the feature is not "healthy", it is
+        // simply not running, and those should not look the same at a glance.
+        $tone = match (true) {
+            $phase === 'failed' => ['b' => 'rgba(239,68,68,.4)',  'g' => 'rgba(239,68,68,.06)',  't' => '#dc2626', 'i' => 'tabler-alert-octagon'],
+            $phase === 'warning' => ['b' => 'rgba(245,158,11,.45)','g' => 'rgba(245,158,11,.08)', 't' => '#d97706', 'i' => 'tabler-clock-hour-4'],
+            $phase === 'verifying' => ['b' => 'rgba(59,130,246,.4)','g' => 'rgba(59,130,246,.06)','t' => '#2563eb', 'i' => 'tabler-reload'],
+            $on => ['b' => 'rgba(34,197,94,.35)', 'g' => 'rgba(34,197,94,.06)', 't' => '#16a34a', 'i' => 'tabler-circle-check'],
+            default => ['b' => 'rgba(128,128,128,.3)', 'g' => 'rgba(128,128,128,.05)', 't' => '#6b7280', 'i' => 'tabler-clock-off'],
+        };
+        $restartAt = (int) ($autoRun['restart_at'] ?? 0);
+    @endphp
+
+    <div wire:poll.30s="refreshAuto"
+         style="border:1px solid {{ $tone['b'] }};background:{{ $tone['g'] }};border-radius:12px;padding:.65rem .8rem;">
+        <div style="display:flex;align-items:flex-start;gap:.55rem;">
+            <x-filament::icon :icon="$tone['i']" style="width:16px;height:16px;flex:0 0 16px;color:{{ $tone['t'] }};margin-top:1px;" />
+            <div style="flex:1;min-width:0;line-height:1.45;">
+                <div style="font-size:.8rem;font-weight:600;color:{{ $tone['t'] }};">
+                    {{ trans('pzmm::messages.auto.title') }}
+                </div>
+                <div style="font-size:.78rem;color:{{ $tone['t'] }};">
+                    @if ($phase === 'warning' && $restartAt)
+                        {{ trans('pzmm::messages.auto.phase.warning', [
+                            'minutes' => max(0, (int) ceil(($restartAt - now()->timestamp) / 60)),
+                            'reason' => $autoRun['reason'] ?? '',
+                        ]) }}
+                    @else
+                        {{ trans('pzmm::messages.auto.phase.' . ($on || $phase !== 'idle' ? $phase : 'off'), [
+                            'minutes' => (int) ($auto['check_minutes'] ?? 5),
+                        ]) }}
+                    @endif
+                </div>
+                @if (!empty($autoRun['note']))
+                    <div style="font-size:.74rem;opacity:.85;">{{ $autoRun['note'] }}</div>
+                @endif
+                @if (!$eggAutoUpdate)
+                    <div style="font-size:.74rem;color:#d97706;margin-top:.2rem;">
+                        {{ trans('pzmm::messages.auto.needs_flag') }}
+                        @if ($this->canWrite())
+                            <button type="button" wire:click="enableEggAutoUpdate" style="font-weight:600;text-decoration:underline;">
+                                {{ trans('pzmm::messages.auto.set_flag') }}
+                            </button>
+                        @endif
+                    </div>
+                @endif
+            </div>
+            <div style="display:flex;gap:.3rem;flex:none;">
+                @if ($phase === 'failed' && $this->canWrite())
+                    <x-filament::button size="xs" color="danger" wire:click="clearAutoFailure">
+                        {{ trans('pzmm::messages.auto.clear_failure') }}
+                    </x-filament::button>
+                @endif
+                <x-filament::button size="xs" color="gray" wire:click="toggleAutoPanel">
+                    {{ $autoOpen ? trans('pzmm::messages.auto.hide') : trans('pzmm::messages.auto.settings') }}
+                </x-filament::button>
+            </div>
+        </div>
+
+        @if ($autoOpen)
+            <div style="margin-top:.7rem;padding-top:.7rem;border-top:1px dashed {{ $tone['b'] }};">
+                <p style="font-size:.74rem;opacity:.8;line-height:1.5;margin-bottom:.6rem;">
+                    {{ trans('pzmm::messages.auto.explain') }}
+                </p>
+
+                <label style="display:flex;align-items:center;gap:.4rem;font-size:.8rem;font-weight:600;margin-bottom:.6rem;cursor:pointer;">
+                    <input type="checkbox" wire:model="auto.enabled" @disabled(!$this->canWrite()) />
+                    {{ trans('pzmm::messages.auto.enabled') }}
+                </label>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.5rem;margin-bottom:.6rem;">
+                    @foreach ([
+                        ['k' => 'check_minutes',       'min' => 1, 'max' => 240],
+                        ['k' => 'warn_minutes',        'min' => 0, 'max' => 60],
+                        ['k' => 'countdown_seconds',   'min' => 0, 'max' => 60],
+                        ['k' => 'cooldown_minutes',    'min' => 0, 'max' => 1440],
+                        ['k' => 'backup_wait_seconds', 'min' => 0, 'max' => 900],
+                    ] as $field)
+                        <label style="display:block;font-size:.72rem;">
+                            <span style="opacity:.75;">{{ trans('pzmm::messages.auto.field.' . $field['k']) }}</span>
+                            <input type="number" min="{{ $field['min'] }}" max="{{ $field['max'] }}"
+                                   wire:model="auto.{{ $field['k'] }}" @disabled(!$this->canWrite())
+                                   class="fi-input" style="width:100%;border-radius:6px;padding:.3rem .45rem;font-size:.8rem;" />
+                        </label>
+                    @endforeach
+                </div>
+
+                <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:.6rem;font-size:.78rem;">
+                    <label style="display:flex;align-items:center;gap:.35rem;cursor:pointer;">
+                        <input type="checkbox" wire:model="auto.backup" @disabled(!$this->canWrite()) />
+                        {{ trans('pzmm::messages.auto.field.backup') }}
+                    </label>
+                    <label style="display:flex;align-items:center;gap:.35rem;cursor:pointer;">
+                        <input type="checkbox" wire:model="auto.check_game" @disabled(!$this->canWrite()) />
+                        {{ trans('pzmm::messages.auto.field.check_game') }}
+                    </label>
+                </div>
+
+                <div style="display:grid;gap:.4rem;margin-bottom:.6rem;">
+                    @foreach (['msg_warn', 'msg_final', 'msg_countdown', 'msg_back'] as $key)
+                        <label style="display:block;font-size:.72rem;">
+                            <span style="opacity:.75;">{{ trans('pzmm::messages.auto.field.' . $key) }}</span>
+                            <input type="text" wire:model="auto.{{ $key }}" @disabled(!$this->canWrite())
+                                   class="fi-input" style="width:100%;border-radius:6px;padding:.3rem .45rem;font-size:.8rem;" />
+                        </label>
+                    @endforeach
+                    <p style="font-size:.7rem;opacity:.7;">{{ trans('pzmm::messages.auto.placeholders') }}</p>
+                </div>
+
+                <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
+                    @if ($this->canWrite())
+                        <x-filament::button size="xs" wire:click="saveAutoUpdate" wire:target="saveAutoUpdate" wire:loading.attr="disabled">
+                            {{ trans('pzmm::messages.auto.save') }}
+                        </x-filament::button>
+                    @endif
+                    <x-filament::button size="xs" color="gray" wire:click="checkAutoNow" wire:target="checkAutoNow" wire:loading.attr="disabled">
+                        {{ trans('pzmm::messages.auto.check_now') }}
+                    </x-filament::button>
+                </div>
+            </div>
+        @endif
+    </div>
+
     {{-- Toolbar --}}
     <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;">
         <input type="search" wire:model.live.debounce.250ms="search" placeholder="{{ trans('pzmm::messages.search') }}"

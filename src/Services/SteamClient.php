@@ -12,32 +12,80 @@ class SteamClient
 
     private const COLLECTION = 'https://api.steampowered.com/ISteamRemoteStorage/GetCollectionDetails/v1/';
 
+    /** Set after a failed fetch; while it is set, Steam is not contacted. */
+    private const BACKOFF_KEY = 'pzmm:steam:backoff';
+
+    private const BACKOFF_SECONDS = 600;
+
     /**
      * Metadata for workshop items, keyed by id. Missing/unreachable items are
      * simply absent - every caller must degrade gracefully.
      *
      * @param  string[]  $ids
+     * @param  ?int  $maxAgeSeconds  Force refresh when cached data is older than this.
      * @return array<string,array<string,mixed>>
      */
-    public function details(array $ids): array
+    public function details(array $ids, ?int $maxAgeSeconds = null): array
     {
         $ids = array_values(array_unique(array_filter($ids)));
         $out = [];
         $missing = [];
 
         foreach ($ids as $id) {
-            $cached = Cache::get("pzmm:steam:$id");
-            if (is_array($cached)) {
+            $cached = $this->readCachedDetail($id, $maxAgeSeconds);
+            if ($cached !== null) {
                 $out[$id] = $cached;
             } else {
                 $missing[] = $id;
             }
         }
 
+        // Steam is down, or throttling, or simply refusing. Hammering it every
+        // five minutes from the scheduler makes that worse and fixes nothing, so
+        // after a failed fetch the endpoint is left alone for a while and stale
+        // cache is served instead. Callers already handle missing metadata.
+        if ($missing && Cache::get(self::BACKOFF_KEY)) {
+            return $out + $this->staleFor($missing);
+        }
+
+        $cacheHours = max(1, (int) config('pz-mod-manager.cache.steam_hours', 12));
         foreach (array_chunk($missing, 50) as $chunk) {
-            foreach ($this->fetchDetails($chunk) as $id => $meta) {
-                Cache::put("pzmm:steam:$id", $meta, now()->addHours(12));
+            $fetched = $this->fetchDetails($chunk);
+            if ($fetched === []) {
+                Cache::put(self::BACKOFF_KEY, true, now()->addSeconds(self::BACKOFF_SECONDS));
+                $out += $this->staleFor($chunk);
+
+                continue;
+            }
+            foreach ($fetched as $id => $meta) {
+                Cache::put("pzmm:steam:$id", [
+                    'meta' => $meta,
+                    'fetched_at' => now()->timestamp,
+                ], now()->addHours($cacheHours));
                 $out[$id] = $meta;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Whatever is cached for these ids, however old.
+     *
+     * Used only when a fetch has just failed. Metadata a few hours out of date is
+     * better than none: it keeps titles and thumbnails on the page, and the
+     * update check simply sees no change rather than a false one.
+     *
+     * @param  string[]  $ids
+     * @return array<string,array<string,mixed>>
+     */
+    private function staleFor(array $ids): array
+    {
+        $out = [];
+        foreach ($ids as $id) {
+            $entry = Cache::get("pzmm:steam:$id");
+            if (is_array($entry) && isset($entry['meta'])) {
+                $out[$id] = $entry['meta'];
             }
         }
 
@@ -121,6 +169,28 @@ class SteamClient
         }
 
         return $out;
+    }
+
+    /** @return ?array<string,mixed> */
+    private function readCachedDetail(string $id, ?int $maxAgeSeconds): ?array
+    {
+        $cached = Cache::get("pzmm:steam:$id");
+        if (!is_array($cached)) {
+            return null;
+        }
+
+        // Legacy shape: cached raw metadata without an age marker.
+        if (!array_key_exists('meta', $cached) || !is_array($cached['meta'] ?? null)) {
+            return $maxAgeSeconds === null ? $cached : null;
+        }
+
+        $meta = $cached['meta'];
+        $fetchedAt = (int) ($cached['fetched_at'] ?? 0);
+        if ($maxAgeSeconds !== null && $fetchedAt > 0 && now()->timestamp - $fetchedAt > $maxAgeSeconds) {
+            return null;
+        }
+
+        return $meta;
     }
 
     /** @param string[] $tags */

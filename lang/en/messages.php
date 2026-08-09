@@ -6,6 +6,41 @@ return [
     'add_placeholder' => 'Steam Workshop ID, item URL or collection URL',
     'auto_activate' => 'auto-enable',
     'auto_activate_hint' => 'Try to enable the mod immediately so a single restart is enough. Verified and corrected automatically after download.',
+    'auto' => [
+        'title' => 'Auto-restart on updates',
+        'settings' => 'Settings',
+        'hide' => 'Hide',
+        'save' => 'Save',
+        'check_now' => 'Check now',
+        'clear_failure' => 'Clear and re-enable',
+        'enabled' => 'Restart automatically when Steam has a newer version',
+        'explain' => 'A Workshop mod that updates while the server is running leaves the server on the old files, and Project Zomboid then refuses to let new players join. Only a restart clears it. With this on, the server warns everyone in game, takes a backup, counts down and restarts itself. If the update turns out not to have been applied, it switches itself off rather than restarting again.',
+        'needs_flag' => 'This server does not re-run SteamCMD on boot (AUTO_UPDATE is not 1), so a restart would download nothing.',
+        'set_flag' => 'Set AUTO_UPDATE to 1',
+        'placeholders' => 'Every message may use :minutes, :seconds and :reason. Leave one empty to send nothing.',
+
+        'phase' => [
+            'off' => 'Off. Nothing restarts on its own.',
+            'idle' => 'On. Checking every :minutes minute(s).',
+            'warning' => 'Restarting in :minutes minute(s) for a :reason update.',
+            'verifying' => 'Restarted. Waiting for the server to come back to confirm the update landed.',
+            'failed' => 'Stopped: the last restart did not apply the update. Nothing will restart until you clear this.',
+        ],
+
+        'field' => [
+            'check_minutes' => 'Check every (minutes)',
+            'warn_minutes' => 'Warn players for (minutes)',
+            'countdown_seconds' => 'Final countdown (seconds)',
+            'cooldown_minutes' => 'Minimum gap between restarts (minutes)',
+            'backup_wait_seconds' => 'Wait for backup up to (seconds)',
+            'backup' => 'Back up before restarting',
+            'check_game' => 'Also check for game updates',
+            'msg_warn' => 'First warning',
+            'msg_final' => 'One minute warning',
+            'msg_countdown' => 'Countdown',
+            'msg_back' => 'After the restart',
+        ],
+    ],
 
     'stat' => [
         'active' => 'Enabled',
@@ -125,6 +160,12 @@ return [
     ],
 
     'notify' => [
+        'auto_saved' => 'Auto-restart settings saved.',
+        'auto_needs_flag' => 'Auto-restart not enabled',
+        'auto_needs_flag_body' => 'This server does not re-run SteamCMD on boot, so restarting would download nothing and the update would still be pending afterwards. Set AUTO_UPDATE to 1 first.',
+        'auto_flag_set' => 'AUTO_UPDATE set to 1',
+        'auto_flag_set_body' => 'This takes effect the next time the server starts.',
+        'auto_no_flag' => 'This egg has no AUTO_UPDATE variable to set.',
         'locked' => 'Locked at position :position. Auto-sort will keep it there.',
         'unlocked' => 'Unlocked.',
         'order_stale' => 'Load order was out of date, reloaded. Please try again.',

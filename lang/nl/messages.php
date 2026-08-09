@@ -6,6 +6,41 @@ return [
     'add_placeholder' => 'Steam Workshop-ID, item-URL of collectie-URL',
     'auto_activate' => 'direct aanzetten',
     'auto_activate_hint' => 'Probeert de mod meteen aan te zetten zodat één herstart genoeg is. Wordt na de download automatisch geverifieerd en gecorrigeerd.',
+    'auto' => [
+        'title' => 'Automatisch herstarten bij updates',
+        'settings' => 'Instellingen',
+        'hide' => 'Verbergen',
+        'save' => 'Opslaan',
+        'check_now' => 'Nu controleren',
+        'clear_failure' => 'Wissen en weer aanzetten',
+        'enabled' => 'Automatisch herstarten als Steam een nieuwere versie heeft',
+        'explain' => 'Een Workshop-mod die bijwerkt terwijl de server draait, laat de server op de oude bestanden staan, en Project Zomboid weigert daarna nieuwe spelers. Alleen een herstart lost dat op. Staat dit aan, dan waarschuwt de server iedereen in de game, maakt een back-up, telt af en herstart zichzelf. Blijkt de update daarna niet binnengehaald, dan zet hij zichzelf uit in plaats van opnieuw te herstarten.',
+        'needs_flag' => 'Deze server draait SteamCMD niet opnieuw bij het opstarten (AUTO_UPDATE staat niet op 1), dus een herstart zou niets downloaden.',
+        'set_flag' => 'Zet AUTO_UPDATE op 1',
+        'placeholders' => 'Elk bericht mag :minutes, :seconds en :reason gebruiken. Laat een veld leeg om niets te sturen.',
+
+        'phase' => [
+            'off' => 'Uit. Er herstart niets vanzelf.',
+            'idle' => 'Aan. Controleert elke :minutes minuut/minuten.',
+            'warning' => 'Herstart over :minutes minuut/minuten voor een :reason-update.',
+            'verifying' => 'Herstart. Wacht tot de server terug is om te bevestigen dat de update binnen is.',
+            'failed' => 'Gestopt: de laatste herstart heeft de update niet toegepast. Er herstart niets meer tot je dit wist.',
+        ],
+
+        'field' => [
+            'check_minutes' => 'Controleer elke (minuten)',
+            'warn_minutes' => 'Spelers waarschuwen (minuten)',
+            'countdown_seconds' => 'Laatste aftelling (seconden)',
+            'cooldown_minutes' => 'Minimale tijd tussen herstarts (minuten)',
+            'backup_wait_seconds' => 'Wacht op back-up tot (seconden)',
+            'backup' => 'Back-up maken voor de herstart',
+            'check_game' => 'Ook op game-updates controleren',
+            'msg_warn' => 'Eerste waarschuwing',
+            'msg_final' => 'Waarschuwing van een minuut',
+            'msg_countdown' => 'Aftellen',
+            'msg_back' => 'Na de herstart',
+        ],
+    ],
 
     'stat' => [
         'active' => 'Aan',
@@ -42,8 +77,6 @@ return [
         'bundled' => 'gebundeld — zelfde Workshop-item als :title, verwijderen haalt beide weg',
         'disable' => 'Uitzetten — clients downloaden hem niet meer, bestanden blijven op de server',
         'delete' => 'Verwijderen — haalt de mod én de bestanden van de server',
-        'bulk_disable' => 'Alle geselecteerde mods uitschakelen? Clients downloaden ze niet meer, de bestanden blijven op de server staan.',
-        'bulk_delete' => 'Alle geselecteerde mods en hun bestanden van de server verwijderen? Dit kan niet ongedaan worden gemaakt.',
         'changelog' => 'Changelog tonen',
     ],
 
@@ -109,6 +142,8 @@ return [
     ],
 
     'confirm' => [
+        'bulk_disable' => 'Alle geselecteerde mods uitschakelen? Clients downloaden ze niet meer, de bestanden blijven op de server staan.',
+        'bulk_delete' => 'Alle geselecteerde mods en hun bestanden van de server verwijderen? Dit kan niet ongedaan worden gemaakt.',
         'restart' => 'Server nu herstarten? Spelers die online zijn worden losgekoppeld.',
         'disable' => 'Deze mod uitzetten? Clients downloaden hem dan niet meer. De bestanden blijven staan zodat je hem zo weer aan kunt zetten.',
         'delete' => 'Deze mod én de bestanden van de server verwijderen? Dit kan niet ongedaan worden gemaakt.',
@@ -125,6 +160,12 @@ return [
     ],
 
     'notify' => [
+        'auto_saved' => 'Instellingen voor automatisch herstarten opgeslagen.',
+        'auto_needs_flag' => 'Automatisch herstarten niet aangezet',
+        'auto_needs_flag_body' => 'Deze server draait SteamCMD niet opnieuw bij het opstarten, dus een herstart zou niets downloaden en de update zou er daarna nog steeds zijn. Zet eerst AUTO_UPDATE op 1.',
+        'auto_flag_set' => 'AUTO_UPDATE op 1 gezet',
+        'auto_flag_set_body' => 'Dit gaat in zodra de server de volgende keer start.',
+        'auto_no_flag' => 'Deze egg heeft geen AUTO_UPDATE-variabele om te zetten.',
         'locked' => 'Vastgezet op plek :position. Auto-sort laat hem daar staan.',
         'unlocked' => 'Losgemaakt.',
         'order_stale' => 'Laadvolgorde was verouderd, opnieuw geladen. Probeer het nog eens.',

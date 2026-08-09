@@ -88,13 +88,135 @@ world-loading crashes, and pending downloads.
 - Titles, categories and thumbnails from Steam.
 - Installed version, install date, and an *update available* badge when Steam has
   a newer build than the files on disk.
+- Auto-restart when Steam has a newer version of a mod or of the game itself,
+  with in-game warnings, a backup and a verification pass. Off by default.
 - Workshop changelog viewer.
 - Restart the server from the page (respects the `control.restart` permission).
 - English and Dutch, through standard Laravel language files.
 
+## Auto-restart when Steam has a newer version
+
+A Workshop mod that updates while the server is running leaves the server on the
+old files while every client holds the new ones. Project Zomboid refuses the
+mismatch, so nobody new can join. Players already on notice nothing, which is
+what makes it nasty: the server looks healthy while turning away everyone who
+tries to connect. Only a restart clears it, and the same is true of a game
+update.
+
+Switch it on under **Auto-restart on updates** on the Mods page. It is off by
+default, per server.
+
+![The auto-restart panel with its parts numbered: the live status line, the master switch, the timing fields, the backup and game-update options, the four configurable announcements, and the check-now button](docs/auto-restart.png)
+
+What happens when something is outdated:
+
+1. Everyone in game is warned, five minutes ahead by default.
+2. The world is saved and a panel backup starts, so the snapshot holds a saved
+   game rather than whatever was in memory.
+3. A second warning goes out a minute before.
+4. A ten second countdown, then the server restarts through the normal power
+   action, so the egg's own `quit` saves and shuts down cleanly.
+5. Once it is back, the plugin checks whether the update actually landed.
+
+Warning text, all timings and the countdown are settings. So is the minimum gap
+between restarts, which stops a modder publishing five updates in a row from
+costing five restarts. An empty message means "say nothing".
+
+If nobody is online the warnings and countdown are skipped, because there is
+nobody to warn.
+
+### Every setting
+
+| Setting | Default | Range | What it does |
+| --- | --- | --- | --- |
+| Restart automatically | off | on/off | The master switch. Nothing happens until this is on. |
+| Check every | 5 min | 1 to 240 | How often Steam is asked. |
+| Warn players for | 5 min | 0 to 60 | How long between the first warning and the restart. `0` restarts at once. |
+| Final countdown | 10 s | 0 to 60 | Messages once a second just before the restart. |
+| Minimum gap between restarts | 60 min | 0 to 1440 | No second automatic restart inside this window, whatever is found. |
+| Wait for backup up to | 120 s | 0 to 900 | How long a restart may wait for its backup before going ahead anyway. |
+| Back up before restarting | on | on/off | Saves the world, then starts a panel backup. |
+| Also check for game updates | on | on/off | Watches the installed build as well as the mods. |
+| First warning | text | | Sent when the window opens. |
+| One minute warning | text | | Sent a minute before. |
+| Countdown | text | | Sent once a second during the countdown. |
+| After the restart | text | | Sent once the server is back and the update is confirmed. |
+
+Every message may use `:minutes`, `:seconds` and `:reason`, whichever message it
+is. `:reason` is `mod`, `game`, or `mod and game`. An empty message sends
+nothing, which is a supported way to silence any one of the four.
+
+Settings are per server and live in `.pz-mod-manager.json` beside the server
+files, not in the panel config: two servers on one panel can use different
+windows, and `artisan optimize:clear` cannot silently re-enable a feature that
+restarts machines. Values are clamped to the ranges above on both read and write,
+so a hand-edited file cannot schedule a restart eleven weeks out.
+
+**Check now** runs the whole detection pass and reports what it found without
+touching the server, which is the safe way to see whether it is working.
+
+### AUTO_UPDATE is not optional
+
+The steamcmd images only re-run steamcmd on boot when the egg variable
+`AUTO_UPDATE` is `1`. Without it a restart downloads nothing, the update is still
+outstanding afterwards, and the next check restarts again. That is a reboot loop
+on a live server, so the plugin refuses to switch auto-restart on until the
+variable is set, and offers to set it for you. It takes effect at the next start.
+
+### It stops rather than trying twice
+
+After the restart the plugin waits for the server to come back and re-runs the
+check. If the update still has not been applied it disables itself and shows
+why, rather than restarting again. A server that needs a human beats a server in
+a loop.
+
+Every lookup that fails is treated as "no information", never as "no update":
+Steam unreachable, log unreadable, player count unknown. Nothing restarts on a
+failed lookup. If the player count cannot be established the full warning
+sequence runs anyway, since announcing to an empty server costs nothing and
+restarting without warning costs somebody their progress.
+
+### Only what the server actually loads
+
+Auto-restart looks at the mods in `Mods=`, not at everything on disk. A mod under
+**Available** can be as outdated as it likes and will never cause a restart,
+because the server does not load it and it therefore cannot cause a version
+mismatch for anyone.
+
+The "update available" badge on the page is a separate thing and does show for
+disabled mods, since there it is information rather than a trigger.
+
+### Steam request volume
+
+One check is one request, not one per mod: `GetPublishedFileDetails` takes fifty
+ids per call, and the whole panel is batched into a single warm-up call before
+any server is ticked, so six servers sharing mods still cost one request. At the
+five minute default that is under 300 requests a day for a panel, against an
+endpoint whose informal ceiling is in the tens of thousands.
+
+There is no API key to add. `GetPublishedFileDetails` is keyless and rate limited
+by IP, so the lever is fewer calls rather than a bigger quota. If a fetch does
+fail, Steam is left alone for ten minutes and cached metadata is used in the
+meantime, which means an outage degrades to "no update detected" rather than to a
+retry storm.
+
+The game build check is cached per app id and shared across servers, so it costs
+roughly six requests an hour to `api.steamcmd.net` no matter how many servers run
+Project Zomboid.
+
+### Detecting a game update
+
+The installed build comes from `steamapps/appmanifest_<appid>.acf`, which
+SteamCMD writes with the build id it last downloaded. The current public build
+comes from `api.steamcmd.net`, because Valve does not publish an app's build id
+through the Web API without authenticating as an owner. That is a third party, so
+a failed lookup skips the game check and leaves the mod check running. It can be
+switched off entirely.
+
 ## Requirements
 
-- Pelican Panel (tested on `1.0.0-beta35`)
+- Pelican Panel (tested on `1.0.0-beta36`), with its scheduler running
+  (`artisan schedule:run` every minute) if you want auto-restart
 - A Project Zomboid egg (the page only appears for eggs whose name contains
   "zomboid")
 - Outbound HTTPS from the panel container for Steam metadata — the plugin works
@@ -122,6 +244,15 @@ artisan commands inside it:
 docker exec pelican-panel-1 php artisan p:plugin:install pz-mod-manager
 docker exec pelican-panel-1 php artisan optimize:clear
 ```
+
+### A note on copying files in by hand
+
+The panel writes a `meta` block into `plugin.json` when it installs a plugin, and
+reads the enabled state back out of that file. Overwriting `plugin.json` with the
+copy from git therefore uninstalls the plugin, and the Mods page then answers
+"route could not be found". If you deploy by copying files, run
+`php artisan p:plugin:install pz-mod-manager` afterwards, or keep the `meta`
+block. The Import button does the right thing on its own.
 
 ## Updating
 
@@ -152,6 +283,12 @@ once; every release after this one arrives on its own.
 | View the page | `file.read` |
 | Add, enable, disable, delete, reorder, lock, bulk actions | `file.update` |
 | Restart button | `control.restart` |
+| Change auto-restart settings | `file.update` |
+| Set `AUTO_UPDATE` from the panel | `startup.update` |
+
+The scheduled restart itself runs as the panel, not as a user, so it is not
+subject to subuser permissions. Whoever can change the settings can cause a
+restart.
 
 ## How it works
 
@@ -170,6 +307,9 @@ stay fast.
 `config/pz-mod-manager.php` holds the Steam app id, the fallback build (the
 running server's build is detected automatically), the egg name to match, and
 cache lifetimes. The defaults are fine for a normal Project Zomboid server.
+
+Auto-restart is deliberately not configured here. Those settings are per server
+and are edited on the page itself; see [Every setting](#every-setting).
 
 ## Building a release zip
 
