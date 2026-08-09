@@ -16,16 +16,18 @@ class PZModManagerPluginProvider extends ServiceProvider
     public function boot(): void
     {
         $this->app->booted(function () {
-            $schedule = $this->app->make(Schedule::class);
-            $checkInterval = max(1, min(59, (int) config('pz-mod-manager.auto_update.check_interval_minutes', 1)));
-
-            $schedule->call(fn () => app(AutoUpdateService::class)->runChecks())
-                ->name('pzmm:auto-update-check')
-                ->cron("*/{$checkInterval} * * * *")
-                ->withoutOverlapping();
-
-            $schedule->call(fn () => app(AutoUpdateService::class)->processPendingRestarts())
-                ->name('pzmm:auto-update-pending-restart')
+            // One tick a minute for every server, rather than a cron expression
+            // per interval. How often a given server is actually checked is its
+            // own setting, kept beside the server, so two servers on one panel
+            // can poll at different rates and a change takes effect on the next
+            // minute instead of after a config cache rebuild.
+            //
+            // withoutOverlapping matters here: a tick can sit through a ten
+            // second countdown, and two overlapping ticks would announce and
+            // restart twice.
+            $this->app->make(Schedule::class)
+                ->call(fn () => app(AutoUpdateService::class)->tick())
+                ->name('pzmm:auto-update')
                 ->everyMinute()
                 ->withoutOverlapping();
         });

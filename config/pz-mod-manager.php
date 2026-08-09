@@ -12,12 +12,10 @@ return [
     // Only show the Mods page for eggs whose name contains this.
     'egg_match' => 'zomboid',
 
-    'auto_update' => [
-        // How often to check Workshop updates for enabled mods.
-        'check_interval_minutes' => 1,
-        // Maximum age of cached Steam metadata used by auto-update checks.
-        'max_steam_meta_age_seconds' => 60,
-    ],
+    // Auto-restart settings are deliberately NOT here. They are per server and
+    // live in the side-car beside the server files, because two servers on one
+    // panel need different windows, and a panel-wide config file is the wrong
+    // place to decide that one particular game server restarts itself.
 
     'cache' => [
         // Parsed mod index; invalidated automatically when files change.

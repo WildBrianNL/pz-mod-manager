@@ -94,9 +94,69 @@ world-loading crashes, and pending downloads.
 - Restart the server from the page (respects the `control.restart` permission).
 - English and Dutch, through standard Laravel language files.
 
+## Auto-restart when Steam has a newer version
+
+A Workshop mod that updates while the server is running leaves the server on the
+old files while every client holds the new ones. Project Zomboid refuses the
+mismatch, so nobody new can join. Players already on notice nothing, which is
+what makes it nasty: the server looks healthy while turning away everyone who
+tries to connect. Only a restart clears it, and the same is true of a game
+update.
+
+Switch it on under **Auto-restart on updates** on the Mods page. It is off by
+default, per server.
+
+What happens when something is outdated:
+
+1. Everyone in game is warned, five minutes ahead by default.
+2. The world is saved and a panel backup starts, so the snapshot holds a saved
+   game rather than whatever was in memory.
+3. A second warning goes out a minute before.
+4. A ten second countdown, then the server restarts through the normal power
+   action, so the egg's own `quit` saves and shuts down cleanly.
+5. Once it is back, the plugin checks whether the update actually landed.
+
+Warning text, all timings and the countdown are settings. So is the minimum gap
+between restarts, which stops a modder publishing five updates in a row from
+costing five restarts. An empty message means "say nothing".
+
+If nobody is online the warnings and countdown are skipped, because there is
+nobody to warn.
+
+### AUTO_UPDATE is not optional
+
+The steamcmd images only re-run steamcmd on boot when the egg variable
+`AUTO_UPDATE` is `1`. Without it a restart downloads nothing, the update is still
+outstanding afterwards, and the next check restarts again. That is a reboot loop
+on a live server, so the plugin refuses to switch auto-restart on until the
+variable is set, and offers to set it for you. It takes effect at the next start.
+
+### It stops rather than trying twice
+
+After the restart the plugin waits for the server to come back and re-runs the
+check. If the update still has not been applied it disables itself and shows
+why, rather than restarting again. A server that needs a human beats a server in
+a loop.
+
+Every lookup that fails is treated as "no information", never as "no update":
+Steam unreachable, log unreadable, player count unknown. Nothing restarts on a
+failed lookup. If the player count cannot be established the full warning
+sequence runs anyway, since announcing to an empty server costs nothing and
+restarting without warning costs somebody their progress.
+
+### Detecting a game update
+
+The installed build comes from `steamapps/appmanifest_<appid>.acf`, which
+SteamCMD writes with the build id it last downloaded. The current public build
+comes from `api.steamcmd.net`, because Valve does not publish an app's build id
+through the Web API without authenticating as an owner. That is a third party, so
+a failed lookup skips the game check and leaves the mod check running. It can be
+switched off entirely.
+
 ## Requirements
 
-- Pelican Panel (tested on `1.0.0-beta35`)
+- Pelican Panel (tested on `1.0.0-beta35`), with its scheduler running
+  (`artisan schedule:run` every minute) if you want auto-restart
 - A Project Zomboid egg (the page only appears for eggs whose name contains
   "zomboid")
 - Outbound HTTPS from the panel container for Steam metadata — the plugin works
@@ -154,6 +214,12 @@ once; every release after this one arrives on its own.
 | View the page | `file.read` |
 | Add, enable, disable, delete, reorder, lock, bulk actions | `file.update` |
 | Restart button | `control.restart` |
+| Change auto-restart settings | `file.update` |
+| Set `AUTO_UPDATE` from the panel | `startup.update` |
+
+The scheduled restart itself runs as the panel, not as a user, so it is not
+subject to subuser permissions. Whoever can change the settings can cause a
+restart.
 
 ## How it works
 
