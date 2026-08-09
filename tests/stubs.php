@@ -157,8 +157,13 @@ namespace WildBrianNL\PZModManager\Services {
     {
         public static array $details = ['111' => ['updated' => 1000, 'title' => 'Mod A']];
 
+        /** Counted, because how often Steam is contacted is itself a requirement. */
+        public static int $calls = 0;
+
         public function details(array $ids, ?int $maxAge = null): array
         {
+            self::$calls++;
+
             return self::$details;
         }
     }

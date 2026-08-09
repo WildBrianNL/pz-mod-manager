@@ -220,5 +220,28 @@ PowerService::reset();
 $svc->tickServer(new Server());
 ok(($store->state['run']['phase'] ?? 'idle') === 'idle', 'build-API onbereikbaar: doet niets');
 
+// --------------------------------------------------------- Steam-verkeer
+
+// One check must cost one Steam request, not one per mod: the API takes fifty
+// ids per call and the scheduler runs all day.
+SteamClient::$calls = 0;
+PowerService::reset();
+$many = [];
+$steam = [];
+for ($i = 0; $i < 40; $i++) {
+    $many[] = ['mod_id' => "Mod$i", 'workshop_id' => (string) (1000 + $i), 'installed_at' => 1000];
+    $steam[(string) (1000 + $i)] = ['updated' => 1000, 'title' => "Mod $i"];
+}
+[$svc, $store] = service(
+    ['enabled' => true],
+    [],
+    ['mods' => array_column($many, 'mod_id'), 'installed' => $many, 'steam' => $steam]
+);
+$svc->tickServer(new Server());
+ok(SteamClient::$calls === 1, '40 mods kosten een Steam-aanroep, niet 40', SteamClient::$calls);
+
+// Nothing outdated means no restart either, however many mods there are.
+ok(PowerService::$sent === [], '40 mods, niets verouderd: geen herstart', PowerService::$sent);
+
 echo $fail ? "\nRESULT: $fail gefaald\n" : "\nRESULT: alles ok\n";
 exit($fail ? 1 : 0);

@@ -144,6 +144,24 @@ failed lookup. If the player count cannot be established the full warning
 sequence runs anyway, since announcing to an empty server costs nothing and
 restarting without warning costs somebody their progress.
 
+### Steam request volume
+
+One check is one request, not one per mod: `GetPublishedFileDetails` takes fifty
+ids per call, and the whole panel is batched into a single warm-up call before
+any server is ticked, so six servers sharing mods still cost one request. At the
+five minute default that is under 300 requests a day for a panel, against an
+endpoint whose informal ceiling is in the tens of thousands.
+
+There is no API key to add. `GetPublishedFileDetails` is keyless and rate limited
+by IP, so the lever is fewer calls rather than a bigger quota. If a fetch does
+fail, Steam is left alone for ten minutes and cached metadata is used in the
+meantime, which means an outage degrades to "no update detected" rather than to a
+retry storm.
+
+The game build check is cached per app id and shared across servers, so it costs
+roughly six requests an hour to `api.steamcmd.net` no matter how many servers run
+Project Zomboid.
+
 ### Detecting a game update
 
 The installed build comes from `steamapps/appmanifest_<appid>.acf`, which
@@ -184,6 +202,15 @@ artisan commands inside it:
 docker exec pelican-panel-1 php artisan p:plugin:install pz-mod-manager
 docker exec pelican-panel-1 php artisan optimize:clear
 ```
+
+### A note on copying files in by hand
+
+The panel writes a `meta` block into `plugin.json` when it installs a plugin, and
+reads the enabled state back out of that file. Overwriting `plugin.json` with the
+copy from git therefore uninstalls the plugin, and the Mods page then answers
+"route could not be found". If you deploy by copying files, run
+`php artisan p:plugin:install pz-mod-manager` afterwards, or keep the `meta`
+block. The Import button does the right thing on its own.
 
 ## Updating
 

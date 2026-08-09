@@ -19,6 +19,13 @@ fail() {
     exit 1
 }
 
+# Deploying by hand: the panel writes a "meta" block into plugin.json on install
+# and reads the plugin's enabled state back out of it. Overwriting the file with
+# the one from git therefore uninstalls the plugin, and the Mods page 404s with
+# "route could not be found". If you copy files in, either keep that block or run
+#   php artisan p:plugin:install pz-mod-manager
+# afterwards. The supported route is the panel's own Import button.
+
 # --- PHP syntax -------------------------------------------------------------
 tar czf /tmp/pzmm-lint.tgz $(git ls-files '*.php') 2>/dev/null
 scp -q -i "$KEY" /tmp/pzmm-lint.tgz "$HOST":/tmp/pzmm-lint.tgz

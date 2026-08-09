@@ -84,7 +84,10 @@ class AutoUpdateService
     /** Called once a minute by the panel scheduler. */
     public function tick(): void
     {
-        foreach ($this->servers() as $server) {
+        $servers = $this->servers();
+        $this->warmSteam($servers);
+
+        foreach ($servers as $server) {
             try {
                 $this->tickServer($server);
             } catch (\Throwable $e) {
@@ -565,6 +568,44 @@ class AutoUpdateService
     {
         $state['run'] = $run;
         $this->store->write($server, $state);
+    }
+
+    /**
+     * One Steam request for the whole panel, before any server is ticked.
+     *
+     * The API takes fifty ids per call, so a panel with six Project Zomboid
+     * servers would otherwise make six calls where one will do, and servers
+     * sharing a mod would each ask about it separately. The per-server checks
+     * then read a warm cache and contact Steam not at all.
+     *
+     * @param \Illuminate\Support\Collection<int,Server> $servers
+     */
+    private function warmSteam($servers): void
+    {
+        $ids = [];
+        foreach ($servers as $server) {
+            try {
+                $state = $this->store->read($server);
+                if (!($state['auto']['enabled'] ?? false)) {
+                    continue;
+                }
+                $index = $this->scanner->index($server, (int) config('pz-mod-manager.fallback_build', 42));
+                foreach ($index['mods'] ?? [] as $mod) {
+                    $workshopId = (string) ($mod['workshop_id'] ?? '');
+                    if ($workshopId !== '') {
+                        $ids[$workshopId] = true;
+                    }
+                }
+            } catch (\Throwable $e) {
+                // A server that cannot be read here is handled, and reported,
+                // when its own tick runs.
+                continue;
+            }
+        }
+
+        if ($ids) {
+            $this->steam->details(array_keys($ids), self::STEAM_MAX_AGE_SECONDS);
+        }
     }
 
     /** @return \Illuminate\Support\Collection<int,Server> */
