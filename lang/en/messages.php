@@ -17,7 +17,7 @@ return [
         'explain' => 'A Workshop mod that updates while the server is running leaves the server on the old files, and Project Zomboid then refuses to let new players join. Only a restart clears it. With this on, the server warns everyone in game, takes a backup, counts down and restarts itself. If the update turns out not to have been applied, it switches itself off rather than restarting again.',
         'needs_flag' => 'This server does not re-run SteamCMD on boot (AUTO_UPDATE is not 1), so a restart would download nothing.',
         'set_flag' => 'Set AUTO_UPDATE to 1',
-        'placeholders' => 'Use :minutes, :seconds and :reason in these messages. Leave one empty to send nothing.',
+        'placeholders' => 'Every message may use :minutes, :seconds and :reason. Leave one empty to send nothing.',
 
         'phase' => [
             'off' => 'Off. Nothing restarts on its own.',

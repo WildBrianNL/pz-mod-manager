@@ -220,6 +220,54 @@ PowerService::reset();
 $svc->tickServer(new Server());
 ok(($store->state['run']['phase'] ?? 'idle') === 'idle', 'build-API onbereikbaar: doet niets');
 
+// ------------------------------------------------------------ placeholders
+
+// The settings panel offers :minutes, :seconds and :reason without saying which
+// message may use which, so every message has to substitute all three. One that
+// is missed does not fail quietly: the literal ":reason" is broadcast to every
+// player on the server.
+PowerService::reset();
+Server::reset();
+$now = time();
+$all = ['msg_warn' => 'W :minutes :seconds :reason', 'msg_final' => 'F :minutes :seconds :reason',
+        'msg_countdown' => 'C :minutes :seconds :reason', 'msg_back' => 'B :minutes :seconds :reason'];
+
+[$svc, $store] = service(
+    ['enabled' => true, 'warn_minutes' => 5, 'backup' => false] + $all,
+    [],
+    ['players' => 2, 'steam' => ['111' => ['updated' => 999_999, 'title' => 'Mod A']]]
+);
+$svc->tickServer(new Server());
+
+// One minute warning.
+[$svc2, $store2] = service(
+    ['enabled' => true, 'backup' => false] + $all,
+    ['phase' => 'warning', 'reason' => 'mod', 'restart_at' => $now + 45, 'started_at' => $now - 300, 'announced' => [5]],
+);
+$svc2->tickServer(new Server());
+
+// Countdown and the message after coming back.
+[$svc3, $store3] = service(
+    ['enabled' => true, 'backup' => false, 'countdown_seconds' => 1] + $all,
+    ['phase' => 'warning', 'reason' => 'mod', 'restart_at' => $now, 'started_at' => $now - 300, 'announced' => [5, 1]],
+);
+$svc3->tickServer(new Server());
+
+[$svc4, $store4] = service(
+    ['enabled' => true] + $all,
+    ['phase' => 'verifying', 'reason' => 'mod', 'verify_after' => $now - 10, 'verify_before' => $now + 600, 'last_restart_at' => $now - 600],
+);
+$svc4->tickServer(new Server());
+
+$broadcast = implode(' | ', Server::$sent);
+ok(!str_contains($broadcast, ':reason'), 'geen onvervangen :reason naar spelers', $broadcast);
+ok(!str_contains($broadcast, ':minutes'), 'geen onvervangen :minutes naar spelers', $broadcast);
+ok(!str_contains($broadcast, ':seconds'), 'geen onvervangen :seconds naar spelers', $broadcast);
+ok(substr_count($broadcast, 'W 5 300 mod') === 1, 'eerste waarschuwing vult minuten en reden', $broadcast);
+ok(substr_count($broadcast, 'F 1 60 mod') === 1, 'minuut-waarschuwing vult ook de reden', $broadcast);
+ok(substr_count($broadcast, 'C 0 1 mod') === 1, 'aftelling vult seconden en reden', $broadcast);
+ok(substr_count($broadcast, 'B 0 0 mod') === 1, 'bericht na herstart vult de reden', $broadcast);
+
 // --------------------------------------------------------- Steam-verkeer
 
 // One check must cost one Steam request, not one per mod: the API takes fifty

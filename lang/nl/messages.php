@@ -17,7 +17,7 @@ return [
         'explain' => 'Een Workshop-mod die bijwerkt terwijl de server draait, laat de server op de oude bestanden staan, en Project Zomboid weigert daarna nieuwe spelers. Alleen een herstart lost dat op. Staat dit aan, dan waarschuwt de server iedereen in de game, maakt een back-up, telt af en herstart zichzelf. Blijkt de update daarna niet binnengehaald, dan zet hij zichzelf uit in plaats van opnieuw te herstarten.',
         'needs_flag' => 'Deze server draait SteamCMD niet opnieuw bij het opstarten (AUTO_UPDATE staat niet op 1), dus een herstart zou niets downloaden.',
         'set_flag' => 'Zet AUTO_UPDATE op 1',
-        'placeholders' => 'Gebruik :minutes, :seconds en :reason in deze teksten. Laat een veld leeg om niets te sturen.',
+        'placeholders' => 'Elk bericht mag :minutes, :seconds en :reason gebruiken. Laat een veld leeg om niets te sturen.',
 
         'phase' => [
             'off' => 'Uit. Er herstart niets vanzelf.',

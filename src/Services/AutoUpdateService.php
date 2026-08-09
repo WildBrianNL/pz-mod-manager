@@ -180,10 +180,7 @@ class AutoUpdateService
         }
 
         if ($warnMinutes > 0) {
-            $this->announce($server, $auto['msg_warn'], [
-                ':minutes' => (string) $warnMinutes,
-                ':reason' => $found['reason'],
-            ]);
+            $this->announce($server, $auto['msg_warn'], $found['reason'], $warnMinutes, $warnMinutes * 60);
             $run['announced'][] = $warnMinutes;
         }
 
@@ -203,7 +200,7 @@ class AutoUpdateService
             // first announcement has otherwise had no warning at all.
             $minutes = (int) ceil($left / 60);
             if ($minutes <= 1 && !in_array(1, $run['announced'] ?? [], true)) {
-                $this->announce($server, $auto['msg_final'], [':minutes' => '1']);
+                $this->announce($server, $auto['msg_final'], (string) ($run['reason'] ?? ''), 1, 60);
                 $run['announced'][] = 1;
                 $this->save($server, $state, $run);
             }
@@ -224,7 +221,7 @@ class AutoUpdateService
             }
         }
 
-        $this->countdown($server, $auto);
+        $this->countdown($server, $auto, (string) ($run['reason'] ?? ''));
 
         $run = [
             'phase' => 'verifying',
@@ -278,7 +275,7 @@ class AutoUpdateService
             return;
         }
 
-        $this->announce($server, $state['auto']['msg_back'], []);
+        $this->announce($server, $state['auto']['msg_back'], (string) ($run['reason'] ?? ''), 0, 0);
 
         $this->save($server, $state, [
             'phase' => 'idle',
@@ -442,10 +439,24 @@ class AutoUpdateService
         return null;
     }
 
-    /** Broadcast to everyone in game. Never fatal: a missed message is not worth aborting a restart. */
-    private function announce(Server $server, string $template, array $replace): void
+    /**
+     * Broadcast to everyone in game.
+     *
+     * Every message gets every placeholder, whichever phase it belongs to. The
+     * settings panel offers `:minutes`, `:seconds` and `:reason` without saying
+     * which message may use which, and a placeholder that is not substituted is
+     * not a silent no-op: the literal text ":reason" goes out to every player on
+     * the server.
+     *
+     * Never fatal. A missed message is not worth aborting a restart over.
+     */
+    private function announce(Server $server, string $template, string $reason, int $minutes, int $seconds): void
     {
-        $text = strtr(trim($template), $replace);
+        $text = strtr(trim($template), [
+            ':minutes' => (string) $minutes,
+            ':seconds' => (string) $seconds,
+            ':reason' => $reason,
+        ]);
         if ($text === '') {
             return;
         }
@@ -470,11 +481,11 @@ class AutoUpdateService
     }
 
     /** The last few seconds, one message a second, then the caller restarts. */
-    private function countdown(Server $server, array $auto): void
+    private function countdown(Server $server, array $auto, string $reason): void
     {
         $seconds = (int) $auto['countdown_seconds'];
         for ($i = $seconds; $i > 0; $i--) {
-            $this->announce($server, $auto['msg_countdown'], [':seconds' => (string) $i]);
+            $this->announce($server, $auto['msg_countdown'], $reason, 0, $i);
             sleep(1);
         }
     }
