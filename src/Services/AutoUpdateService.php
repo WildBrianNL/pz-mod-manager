@@ -97,7 +97,11 @@ class AutoUpdateService
         }
     }
 
-    private function tickServer(Server $server): void
+    /**
+     * One server's turn. Public so a single server can be driven directly, by a
+     * test or by an operator, without waiting for the panel's scheduler.
+     */
+    public function tickServer(Server $server): void
     {
         $state = $this->store->read($server);
         if (!($state['auto']['enabled'] ?? false)) {
