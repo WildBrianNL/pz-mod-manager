@@ -150,7 +150,11 @@ class StateStore
                 (string) json_encode([
                     'pending' => $state['pending'] ?? [],
                     'locks' => $state['locks'] ?? [],
-                    'auto' => $state['auto'] ?? self::AUTO_DEFAULTS,
+                    // Coerced on the way out as well as the way in. Reading is
+                    // what protects the code, but a file holding warn_minutes
+                    // 99999 while the plugin quietly uses 60 is a file that lies
+                    // to whoever opens it.
+                    'auto' => $this->auto($state['auto'] ?? []),
                     'run' => $state['run'] ?? [],
                 ], JSON_PRETTY_PRINT)
             );
