@@ -10,8 +10,12 @@
 # reported success, so a broken file passed the check that existed to catch it.
 set -e
 cd "$(dirname "$0")"
-HOST=ubuntu@135.125.188.67
-KEY="$HOME/.ssh/hoasted"
+# Point these at any host running the panel in Docker. There is no PHP on the
+# machine this was written on, so the checks borrow the interpreter from the
+# container that will actually run the plugin.
+HOST="${PZMM_HOST:?set PZMM_HOST, e.g. user@panel-host}"
+KEY="${PZMM_KEY:-$HOME/.ssh/id_ed25519}"
+CONTAINER="${PZMM_CONTAINER:-pelican-panel-1}"
 REMOTE="ssh -i $KEY $HOST sudo sh -c"
 
 fail() {
@@ -32,9 +36,9 @@ scp -q -i "$KEY" /tmp/pzmm-lint.tgz "$HOST":/tmp/pzmm-lint.tgz
 OUT=$($REMOTE "'
   rm -rf /tmp/pzmm-lint && mkdir -p /tmp/pzmm-lint
   tar xzf /tmp/pzmm-lint.tgz -C /tmp/pzmm-lint
-  docker cp /tmp/pzmm-lint pelican-panel-1:/tmp/pzmm-lint >/dev/null
-  docker exec pelican-panel-1 sh -c \"find /tmp/pzmm-lint -name \\\"*.php\\\" -exec php -l {} \; | grep -v \\\"No syntax errors\\\"\"
-  docker exec pelican-panel-1 rm -rf /tmp/pzmm-lint
+  docker cp /tmp/pzmm-lint $CONTAINER:/tmp/pzmm-lint >/dev/null
+  docker exec $CONTAINER sh -c \"find /tmp/pzmm-lint -name \\\"*.php\\\" -exec php -l {} \; | grep -v \\\"No syntax errors\\\"\"
+  docker exec $CONTAINER rm -rf /tmp/pzmm-lint
 '" 2>/dev/null || true)
 [ -z "$OUT" ] || fail "$OUT"
 echo "php ok"
@@ -45,14 +49,14 @@ echo "php ok"
 # nowhere else, which is why this compiles it first and lints the output.
 scp -q -i "$KEY" resources/views/manage-mods.blade.php "$HOST":/tmp/pzmm-view.blade.php
 OUT=$($REMOTE "'
-  docker cp /tmp/pzmm-view.blade.php pelican-panel-1:/tmp/pzmm-view.blade.php >/dev/null
-  docker exec pelican-panel-1 php -r \"
+  docker cp /tmp/pzmm-view.blade.php $CONTAINER:/tmp/pzmm-view.blade.php >/dev/null
+  docker exec $CONTAINER php -r \"
     require \\\"/var/www/html/vendor/autoload.php\\\";
     \\\$app = require \\\"/var/www/html/bootstrap/app.php\\\";
     \\\$app->make(Illuminate\\Contracts\\Console\\Kernel::class)->bootstrap();
     file_put_contents(\\\"/tmp/pzmm-view.php\\\", Illuminate\\Support\\Facades\\Blade::compileString(file_get_contents(\\\"/tmp/pzmm-view.blade.php\\\")));
   \"
-  docker exec pelican-panel-1 sh -c \"php -l /tmp/pzmm-view.php | grep -v \\\"No syntax errors\\\"\"
+  docker exec $CONTAINER sh -c \"php -l /tmp/pzmm-view.php | grep -v \\\"No syntax errors\\\"\"
 '" 2>/dev/null || true)
 [ -z "$OUT" ] || fail "$OUT"
 echo "blade ok"
@@ -63,8 +67,8 @@ scp -q -i "$KEY" /tmp/pzmm-test.tgz "$HOST":/tmp/pzmm-test.tgz
 $REMOTE "'
   rm -rf /tmp/pzmm-test && mkdir -p /tmp/pzmm-test
   tar xzf /tmp/pzmm-test.tgz -C /tmp/pzmm-test
-  docker cp /tmp/pzmm-test pelican-panel-1:/tmp/pzmm-test >/dev/null
-  docker exec pelican-panel-1 php /tmp/pzmm-test/tests/StateStoreTest.php
-  docker exec pelican-panel-1 php /tmp/pzmm-test/tests/PhaseTest.php
-  docker exec pelican-panel-1 rm -rf /tmp/pzmm-test
+  docker cp /tmp/pzmm-test $CONTAINER:/tmp/pzmm-test >/dev/null
+  docker exec $CONTAINER php /tmp/pzmm-test/tests/StateStoreTest.php
+  docker exec $CONTAINER php /tmp/pzmm-test/tests/PhaseTest.php
+  docker exec $CONTAINER rm -rf /tmp/pzmm-test
 '"

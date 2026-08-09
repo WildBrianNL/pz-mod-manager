@@ -88,8 +88,8 @@ world-loading crashes, and pending downloads.
 - Titles, categories and thumbnails from Steam.
 - Installed version, install date, and an *update available* badge when Steam has
   a newer build than the files on disk.
-- Auto-update status card with a verbose toggle that shows the latest
-  check summary and detailed step-by-step diagnostics.
+- Auto-restart when Steam has a newer version of a mod or of the game itself,
+  with in-game warnings, a backup and a verification pass. Off by default.
 - Workshop changelog viewer.
 - Restart the server from the page (respects the `control.restart` permission).
 - English and Dutch, through standard Laravel language files.
@@ -105,6 +105,8 @@ update.
 
 Switch it on under **Auto-restart on updates** on the Mods page. It is off by
 default, per server.
+
+![The auto-restart panel with its parts numbered: the live status line, the master switch, the timing fields, the backup and game-update options, the four configurable announcements, and the check-now button](docs/auto-restart.png)
 
 What happens when something is outdated:
 
@@ -122,6 +124,36 @@ costing five restarts. An empty message means "say nothing".
 
 If nobody is online the warnings and countdown are skipped, because there is
 nobody to warn.
+
+### Every setting
+
+| Setting | Default | Range | What it does |
+| --- | --- | --- | --- |
+| Restart automatically | off | on/off | The master switch. Nothing happens until this is on. |
+| Check every | 5 min | 1 to 240 | How often Steam is asked. |
+| Warn players for | 5 min | 0 to 60 | How long between the first warning and the restart. `0` restarts at once. |
+| Final countdown | 10 s | 0 to 60 | Messages once a second just before the restart. |
+| Minimum gap between restarts | 60 min | 0 to 1440 | No second automatic restart inside this window, whatever is found. |
+| Wait for backup up to | 120 s | 0 to 900 | How long a restart may wait for its backup before going ahead anyway. |
+| Back up before restarting | on | on/off | Saves the world, then starts a panel backup. |
+| Also check for game updates | on | on/off | Watches the installed build as well as the mods. |
+| First warning | text | | Sent when the window opens. |
+| One minute warning | text | | Sent a minute before. |
+| Countdown | text | | Sent once a second during the countdown. |
+| After the restart | text | | Sent once the server is back and the update is confirmed. |
+
+Every message may use `:minutes`, `:seconds` and `:reason`, whichever message it
+is. `:reason` is `mod`, `game`, or `mod and game`. An empty message sends
+nothing, which is a supported way to silence any one of the four.
+
+Settings are per server and live in `.pz-mod-manager.json` beside the server
+files, not in the panel config: two servers on one panel can use different
+windows, and `artisan optimize:clear` cannot silently re-enable a feature that
+restarts machines. Values are clamped to the ranges above on both read and write,
+so a hand-edited file cannot schedule a restart eleven weeks out.
+
+**Check now** runs the whole detection pass and reports what it found without
+touching the server, which is the safe way to see whether it is working.
 
 ### AUTO_UPDATE is not optional
 
@@ -183,7 +215,7 @@ switched off entirely.
 
 ## Requirements
 
-- Pelican Panel (tested on `1.0.0-beta35`), with its scheduler running
+- Pelican Panel (tested on `1.0.0-beta36`), with its scheduler running
   (`artisan schedule:run` every minute) if you want auto-restart
 - A Project Zomboid egg (the page only appears for eggs whose name contains
   "zomboid")
@@ -274,10 +306,10 @@ stay fast.
 
 `config/pz-mod-manager.php` holds the Steam app id, the fallback build (the
 running server's build is detected automatically), the egg name to match, and
-cache lifetimes. It also exposes auto-update tuning:
+cache lifetimes. The defaults are fine for a normal Project Zomboid server.
 
-- `auto_update.check_interval_minutes` (default `1`)
-- `auto_update.max_steam_meta_age_seconds` (default `60`)
+Auto-restart is deliberately not configured here. Those settings are per server
+and are edited on the page itself; see [Every setting](#every-setting).
 
 ## Building a release zip
 
