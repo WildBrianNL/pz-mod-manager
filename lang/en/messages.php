@@ -6,6 +6,23 @@ return [
     'add_placeholder' => 'Steam Workshop ID, item URL or collection URL',
     'auto_activate' => 'auto-enable',
     'auto_activate_hint' => 'Try to enable the mod immediately so a single restart is enough. Verified and corrected automatically after download.',
+    'auto_update' => [
+        'title' => 'Auto-update status',
+        'last_checked' => 'Last check: :time',
+        'pending_at' => 'Restart scheduled at: :time',
+        'summary' => 'Summary: :summary',
+        'details_title' => 'Verbose details',
+        'no_details' => 'No details captured yet.',
+        'verbose_on' => 'Verbose: on',
+        'verbose_off' => 'Verbose: off',
+        'state' => [
+            'idle' => 'Enabled — checking for Workshop updates every :minutes minute(s).',
+            'checking' => 'Checking Steam Workshop updates now…',
+            'pending_restart' => 'Updates found. Waiting for the automatic restart window.',
+            'restarting' => 'Applying updates by restarting the server.',
+            'check_failed' => 'Could not confirm online players. The next check will retry.',
+        ],
+    ],
 
     'stat' => [
         'active' => 'Enabled',

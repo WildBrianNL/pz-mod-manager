@@ -2,7 +2,7 @@
     "id": "pz-mod-manager",
     "name": "Project Zomboid Mod Manager",
     "author": "WildBrianNL",
-    "version": "2.4.1",
+    "version": "2.5.0",
     "description": "Manage Steam Workshop mods for Project Zomboid servers: add by ID, URL or whole collection, enable/disable, order the load list, auto-sort by dependencies, and see which mods the server actually loaded.",
     "category": "plugin",
     "url": "https://github.com/WildBrianNL/pz-mod-manager",

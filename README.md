@@ -88,6 +88,8 @@ world-loading crashes, and pending downloads.
 - Titles, categories and thumbnails from Steam.
 - Installed version, install date, and an *update available* badge when Steam has
   a newer build than the files on disk.
+- Auto-update status card with a verbose toggle that shows the latest
+  check summary and detailed step-by-step diagnostics.
 - Workshop changelog viewer.
 - Restart the server from the page (respects the `control.restart` permission).
 - English and Dutch, through standard Laravel language files.
@@ -169,7 +171,10 @@ stay fast.
 
 `config/pz-mod-manager.php` holds the Steam app id, the fallback build (the
 running server's build is detected automatically), the egg name to match, and
-cache lifetimes. The defaults are fine for a normal Project Zomboid server.
+cache lifetimes. It also exposes auto-update tuning:
+
+- `auto_update.check_interval_minutes` (default `1`)
+- `auto_update.max_steam_meta_age_seconds` (default `60`)
 
 ## Building a release zip
 
