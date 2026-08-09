@@ -600,10 +600,20 @@ class AutoUpdateService
                 if (!($state['auto']['enabled'] ?? false)) {
                     continue;
                 }
+                // Enabled mods only, matching the check itself. A mod sitting
+                // on disk but absent from Mods= is not loaded by the server, so
+                // it cannot cause a version mismatch and asking Steam about it
+                // spends request budget on an answer nothing reads.
+                $ini = $this->ini->read($server);
+                if (!$ini['ok']) {
+                    continue;
+                }
+                $enabled = array_flip($ini['mods']);
+
                 $index = $this->scanner->index($server, (int) config('pz-mod-manager.fallback_build', 42));
                 foreach ($index['mods'] ?? [] as $mod) {
                     $workshopId = (string) ($mod['workshop_id'] ?? '');
-                    if ($workshopId !== '') {
+                    if ($workshopId !== '' && isset($enabled[$mod['mod_id']])) {
                         $ids[$workshopId] = true;
                     }
                 }

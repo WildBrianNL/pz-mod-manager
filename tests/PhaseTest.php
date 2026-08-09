@@ -268,6 +268,51 @@ ok(substr_count($broadcast, 'F 1 60 mod') === 1, 'minuut-waarschuwing vult ook d
 ok(substr_count($broadcast, 'C 0 1 mod') === 1, 'aftelling vult seconden en reden', $broadcast);
 ok(substr_count($broadcast, 'B 0 0 mod') === 1, 'bericht na herstart vult de reden', $broadcast);
 
+// ------------------------------------------------- alleen ingeschakelde mods
+
+// A mod on disk but absent from Mods= is not loaded, so it cannot cause a
+// version mismatch. Restarting a populated server for a mod nobody is running
+// would be the most annoying possible false positive.
+PowerService::reset();
+[$svc, $store] = service(
+    ['enabled' => true],
+    [],
+    [
+        'mods' => ['ModA'],                       // only ModA is enabled
+        'installed' => [
+            ['mod_id' => 'ModA', 'workshop_id' => '111', 'installed_at' => 1000],
+            ['mod_id' => 'ModB', 'workshop_id' => '222', 'installed_at' => 1000],
+        ],
+        'steam' => [
+            '111' => ['updated' => 1000, 'title' => 'Mod A'],
+            '222' => ['updated' => 999_999, 'title' => 'Mod B'],  // outdated, disabled
+        ],
+    ]
+);
+$svc->tickServer(new Server());
+ok(PowerService::$sent === [], 'verouderde uitgeschakelde mod: geen herstart', PowerService::$sent);
+ok(($store->state['run']['phase'] ?? 'idle') === 'idle', 'verouderde uitgeschakelde mod: blijft in rust');
+
+// And the enabled one still triggers, so the filter is not simply refusing all.
+PowerService::reset();
+[$svc, $store] = service(
+    ['enabled' => true],
+    [],
+    [
+        'mods' => ['ModA'],
+        'installed' => [
+            ['mod_id' => 'ModA', 'workshop_id' => '111', 'installed_at' => 1000],
+            ['mod_id' => 'ModB', 'workshop_id' => '222', 'installed_at' => 1000],
+        ],
+        'steam' => [
+            '111' => ['updated' => 999_999, 'title' => 'Mod A'],
+            '222' => ['updated' => 1000, 'title' => 'Mod B'],
+        ],
+    ]
+);
+$svc->tickServer(new Server());
+ok(($store->state['run']['phase'] ?? 'idle') === 'warning', 'verouderde ingeschakelde mod: wel opgepikt', $store->state['run']['phase'] ?? 'idle');
+
 // --------------------------------------------------------- Steam-verkeer
 
 // One check must cost one Steam request, not one per mod: the API takes fifty

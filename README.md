@@ -144,6 +144,16 @@ failed lookup. If the player count cannot be established the full warning
 sequence runs anyway, since announcing to an empty server costs nothing and
 restarting without warning costs somebody their progress.
 
+### Only what the server actually loads
+
+Auto-restart looks at the mods in `Mods=`, not at everything on disk. A mod under
+**Available** can be as outdated as it likes and will never cause a restart,
+because the server does not load it and it therefore cannot cause a version
+mismatch for anyone.
+
+The "update available" badge on the page is a separate thing and does show for
+disabled mods, since there it is information rather than a trigger.
+
 ### Steam request volume
 
 One check is one request, not one per mod: `GetPublishedFileDetails` takes fifty
