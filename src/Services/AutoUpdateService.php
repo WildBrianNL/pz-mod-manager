@@ -168,6 +168,8 @@ class AutoUpdateService
             'started_at' => $now,
             'announced' => [],
             'players_at_start' => $players,
+            'stale_ids' => $found['ids'],
+            'build_before' => $found['build'],
             'last_restart_at' => $run['last_restart_at'] ?? 0,
             'note' => $found['note'],
         ];
@@ -261,15 +263,30 @@ class AutoUpdateService
         }
 
         $found = $this->detect($server, $state['auto']);
-        if ($found['reason']) {
-            // A restart that changed nothing means restarting again would change
-            // nothing either. Usually AUTO_UPDATE is off, or a Workshop item was
-            // pulled and can no longer be downloaded.
+
+        // Only the items this restart was for. A mod that updated while the
+        // server was coming back is a reason for the next cycle, not evidence
+        // that this one failed: checking "is anything outdated" turned a second
+        // update arriving mid-restart into a false failure that disabled the
+        // whole feature.
+        // State written by 2.5.0 has no stale_ids. Fall back to the old
+        // "is anything outdated" test rather than passing everything blindly.
+        $stillStale = array_key_exists('stale_ids', $run)
+            ? array_values(array_intersect($found['ids'] ?? [], $run['stale_ids']))
+            : ($found['ids'] ?? []);
+
+        $gameStuck = str_contains((string) ($run['reason'] ?? ''), 'game')
+            && $found['build'] !== null
+            && $found['build'] === ($run['build_before'] ?? null);
+
+        if ($stillStale || $gameStuck) {
+            // Nothing moved, so restarting again would not move it either.
+            // Usually AUTO_UPDATE is off, or a Workshop item was pulled.
             $this->stop(
                 $server,
                 $state,
-                'Restarted, but the ' . $found['reason'] . ' update is still not applied. '
-                . 'Auto-restart is off so the server is not restarted again. ' . $found['note']
+                'Restarted, but ' . ($gameStuck ? 'the game build' : implode(', ', $stillStale))
+                . ' is still not updated. Auto-restart is off so the server is not restarted again.'
             );
 
             return;
@@ -319,6 +336,7 @@ class AutoUpdateService
         $detail = [];
         $reasons = [];
 
+        $game = [];
         $mods = $this->outdatedMods($server);
         $detail = array_merge($detail, $mods['detail']);
         if ($mods['ids']) {
@@ -344,6 +362,11 @@ class AutoUpdateService
         return [
             'reason' => $reason,
             'detail' => $detail,
+            // Which items, not just that there were some: verification has to
+            // ask about the ones it restarted for and ignore anything that
+            // showed up since.
+            'ids' => $mods['ids'],
+            'build' => $game['installed'] ?? null,
             'note' => $reason
                 ? 'Update found: ' . $reason . '.'
                 : 'Everything up to date.',

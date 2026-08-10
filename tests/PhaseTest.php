@@ -169,7 +169,8 @@ ok(PowerService::$sent === [], 'update binnen: herstart niet nog eens', PowerSer
 PowerService::reset();
 [$svc, $store] = service(
     ['enabled' => true],
-    ['phase' => 'verifying', 'reason' => 'mod', 'verify_after' => $now - 10, 'verify_before' => $now + 600, 'last_restart_at' => $now - 600],
+    ['phase' => 'verifying', 'reason' => 'mod', 'stale_ids' => ['111'],
+     'verify_after' => $now - 10, 'verify_before' => $now + 600, 'last_restart_at' => $now - 600],
     ['steam' => ['111' => ['updated' => 999_999, 'title' => 'Mod A']]]
 );
 $svc->tickServer(new Server());
@@ -312,6 +313,34 @@ PowerService::reset();
 );
 $svc->tickServer(new Server());
 ok(($store->state['run']['phase'] ?? 'idle') === 'warning', 'verouderde ingeschakelde mod: wel opgepikt', $store->state['run']['phase'] ?? 'idle');
+
+// ------------------------------- tweede update tijdens de herstart
+
+// Reported by AlfElFriki: two mod updates minutes apart. The restart applied the
+// first, a second landed while the server was coming back, and verification saw
+// "something is outdated" and declared the restart a failure, disabling the
+// whole feature. It must only judge the items it restarted for.
+PowerService::reset();
+$now = time();
+[$svc, $store] = service(
+    ['enabled' => true],
+    ['phase' => 'verifying', 'reason' => 'mod', 'stale_ids' => ['111'],
+     'verify_after' => $now - 10, 'verify_before' => $now + 600, 'last_restart_at' => $now - 600],
+    [
+        'mods' => ['ModA', 'ModB'],
+        'installed' => [
+            ['mod_id' => 'ModA', 'workshop_id' => '111', 'installed_at' => 1_000_000],
+            ['mod_id' => 'ModB', 'workshop_id' => '222', 'installed_at' => 1000],
+        ],
+        'steam' => [
+            '111' => ['updated' => 1_000_000, 'title' => 'Mod A'],   // ours, applied
+            '222' => ['updated' => 999_999, 'title' => 'Mod B'],     // new, arrived since
+        ],
+    ]
+);
+$svc->tickServer(new Server());
+ok($store->state['run']['phase'] === 'idle', 'nieuwe update tijdens herstart: geen valse mislukking', $store->state['run']['phase']);
+ok($store->state['auto']['enabled'] === true, 'nieuwe update tijdens herstart: blijft aan');
 
 // --------------------------------------------------------- Steam-verkeer
 

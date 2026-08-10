@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.5.1
+
+- **Fixed: a second mod update during a restart looked like a failed restart.**
+  Verification asked "is anything outdated" rather than "did the thing we
+  restarted for get applied", so a mod that updated while the server was coming
+  back made the plugin disable itself with a misleading message. It now records
+  which Workshop items triggered the restart and only judges those. Reported by
+  [AlfElFriki](https://github.com/AlfElFriki).
+
+
 ## 2.5.0
 
 - **Auto-restart when Steam has a newer version.** A Workshop mod that updates
