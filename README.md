@@ -5,7 +5,7 @@ a Project Zomboid server config (`WorkshopItems=` and `Mods=`) into a mod manage
 your whole team can use.
 
 It adds a **Mods** page to the server panel. The page is visible to anyone with
-file access to the server — not just admins — and only appears for Project
+file access to the server - not just admins - and only appears for Project
 Zomboid servers.
 
 ![The Mods page, with its main features numbered: real load status, adding by ID or collection, auto-sort, alerts that carry their own fix, bulk selection, load-order locks, per-mod update detection and per-mod actions](docs/hero.png)
@@ -29,7 +29,7 @@ doing.
 ## Features
 
 **Adding mods**
-- Paste a Workshop ID, an item URL, or a **whole collection URL** — collections
+- Paste a Workshop ID, an item URL, or a **whole collection URL** - collections
   expand to every item they contain.
 - Optional *auto-enable*: the plugin reads the mod id advertised on Steam so a
   single restart is often enough. The guess is verified against the real
@@ -44,7 +44,7 @@ loaded, so every mod reports the truth:
 | running | enabled and loaded by the server |
 | restart to apply | enabled, on disk, not loaded yet |
 | downloads on restart | enabled, not downloaded yet |
-| server could not load it | the server tried and refused — usually a missing dependency |
+| server could not load it | the server tried and refused - usually a missing dependency |
 | not found | listed in `Mods=` but nowhere on the server |
 
 **Load order**
@@ -79,7 +79,7 @@ loaded, so every mod reports the truth:
   while the files stay on the server for a quick re-enable.
 - Deleting a mod removes it from the config *and* deletes its files.
 
-**Problem detection** — each with a one-click fix where one exists:
+**Problem detection** - each with a one-click fix where one exists:
 missing dependencies, mods that failed to load, build mismatches, mods that
 threw errors during the last boot, map mods absent from `Map=`, fatal
 world-loading crashes, and pending downloads.
@@ -228,15 +228,15 @@ switched off entirely.
   (`artisan schedule:run` every minute) if you want auto-restart
 - A Project Zomboid egg (the page only appears for eggs whose name contains
   "zomboid")
-- Outbound HTTPS from the panel container for Steam metadata — the plugin works
+- Outbound HTTPS from the panel container for Steam metadata - the plugin works
   without it, just without titles, categories and thumbnails
 
 ## Installation
 
-**Via the panel** — download the release zip and use the Import button on the
+**Via the panel** - download the release zip and use the Import button on the
 plugin list.
 
-**Manually** — place the plugin in your panel's `plugins` directory. The folder
+**Manually** - place the plugin in your panel's `plugins` directory. The folder
 name must match the plugin id:
 
 ```bash
@@ -254,14 +254,17 @@ docker exec pelican-panel-1 php artisan p:plugin:install pz-mod-manager
 docker exec pelican-panel-1 php artisan optimize:clear
 ```
 
-### A note on copying files in by hand
+### The meta block in plugin.json
 
-The panel writes a `meta` block into `plugin.json` when it installs a plugin, and
-reads the enabled state back out of that file. Overwriting `plugin.json` with the
-copy from git therefore uninstalls the plugin, and the Mods page then answers
-"route could not be found". If you deploy by copying files, run
-`php artisan p:plugin:install pz-mod-manager` afterwards, or keep the `meta`
-block. The Import button does the right thing on its own.
+Pelican keeps a plugin's enabled state in a `meta` block inside `plugin.json`,
+which it writes itself. **Never ship it.** hub.pelican.dev rejects a plugin whose
+published `plugin.json` contains one, and `updatePlugin()` re-runs
+`installPlugin()` after downloading, so the panel puts the block back on its own.
+
+It does matter when you deploy by copying files in by hand: that path skips the
+install step, the block goes missing, and the plugin drops to `not_installed`
+with the Mods page answering "route could not be found". Run
+`php artisan p:plugin:install pz-mod-manager` afterwards, or keep the block.
 
 ## Updating
 
@@ -301,7 +304,7 @@ restart.
 
 ## How it works
 
-The server `.ini` is the single source of truth — the plugin keeps no mod list of
+The server `.ini` is the single source of truth - the plugin keeps no mod list of
 its own and re-reads the config before every change, so two people editing at the
 same time cannot clobber each other's work. It refuses to write whenever the
 config could not be read first.
@@ -372,4 +375,4 @@ with The Indie Stone or Valve.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).

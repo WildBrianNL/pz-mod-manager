@@ -51,9 +51,9 @@ return [
 
     'section' => [
         'active' => 'Enabled',
-        'active_hint' => '— order = load order',
+        'active_hint' => '- order = load order',
         'available' => 'Available',
-        'available_hint' => '— on the server, not enabled',
+        'available_hint' => '- on the server, not enabled',
     ],
 
     'status' => [
@@ -74,14 +74,14 @@ return [
     ],
 
     'tooltip' => [
-        'bundled' => 'bundled — same Workshop item as :title, deleting removes both',
-        'disable' => 'Disable — clients stop downloading it, files stay on the server',
-        'delete' => 'Delete — removes the mod and its files from the server',
+        'bundled' => 'bundled - same Workshop item as :title, deleting removes both',
+        'disable' => 'Disable - clients stop downloading it, files stay on the server',
+        'delete' => 'Delete - removes the mod and its files from the server',
         'changelog' => 'Show changelog',
     ],
 
     'changelog' => [
-        'title' => 'Changelog — :mod',
+        'title' => 'Changelog - :mod',
         'empty' => 'Steam returned no changelog (it rate-limits this page). Open it on Steam instead.',
         'open_steam' => 'View on Steam',
         'close' => 'Close',
@@ -120,16 +120,16 @@ return [
     'alert' => [
         'crash' => 'The last start failed: :reason. The server will not load the world until this is fixed.',
         'missing_dep' => '":dep" is required by :mods but is not enabled.',
-        'missing_dep_uninstalled' => '":dep" is required by :mods but is not installed on this server — add its Workshop item, otherwise the mod will never load.',
+        'missing_dep_uninstalled' => '":dep" is required by :mods but is not installed on this server - add its Workshop item, otherwise the mod will never load.',
         'orphans' => 'Enabled but not installed: :mods. These entries do nothing.',
-        'awaiting_download' => '{1} :count mod has not been downloaded yet — restart the server.|[2,*] :count mods have not been downloaded yet — restart the server.',
+        'awaiting_download' => '{1} :count mod has not been downloaded yet - restart the server.|[2,*] :count mods have not been downloaded yet - restart the server.',
         'needs_restart' => '{1} :count mod is enabled but not loaded yet.|[2,*] :count mods are enabled but not loaded yet.',
         'build_mismatch' => 'These mods do not list build :build support: :mods.',
         'maps_missing' => 'Map mods found that are not in Map=: :maps.',
         'mod_errors' => 'These mods reported errors during the last start: :mods.',
-        'order_changed' => 'The load order has changed but is not active yet — restart the server to apply it.',
+        'order_changed' => 'The load order has changed but is not active yet - restart the server to apply it.',
         'duplicates' => 'Duplicate entries were removed automatically: :mods.',
-        'updates' => '{1} :count mod has a newer version on Steam — restart the server to update it.|[2,*] :count mods have a newer version on Steam — restart the server to update them.',
+        'updates' => '{1} :count mod has a newer version on Steam - restart the server to update it.|[2,*] :count mods have a newer version on Steam - restart the server to update them.',
     ],
 
     'bulk' => [
@@ -150,7 +150,7 @@ return [
     ],
 
     'empty' => [
-        'active' => 'No mods enabled yet — enable one below.',
+        'active' => 'No mods enabled yet - enable one below.',
         'available' => 'Nothing on the server yet. Add a mod and restart to download it.',
     ],
 
@@ -178,15 +178,15 @@ return [
         'bulk_disabled' => '{1} :count mod disabled|[2,*] :count mods disabled',
         'bulk_removed' => '{1} :count mod removed and files deleted|[2,*] :count mods removed and files deleted',
         'bulk_nothing' => 'Nothing to do: the selection was already in that state.',
-        'disabled' => 'Disabled — clients will no longer download it.',
+        'disabled' => 'Disabled - clients will no longer download it.',
         'files_kept' => 'Removed from the config, but the files could not be deleted.',
         'refreshed' => 'Refreshed.',
-        'sorted' => 'Sorted — frameworks and dependencies first.',
+        'sorted' => 'Sorted - frameworks and dependencies first.',
         'cleaned' => 'Cleaned up.',
         'maps_added' => 'Maps added to the config.',
         'restarting' => 'Restart requested.',
         'restart_failed' => 'Restart failed',
-        'config_error' => 'The server config could not be read — nothing was changed.',
+        'config_error' => 'The server config could not be read - nothing was changed.',
         'auto_activated' => 'Enabled automatically after download',
         'repaired_workshop' => 'Repaired: missing Workshop IDs added so clients can download these mods',
     ],

@@ -51,9 +51,9 @@ return [
 
     'section' => [
         'active' => 'Aan',
-        'active_hint' => '— volgorde = load-order',
+        'active_hint' => '- volgorde = load-order',
         'available' => 'Beschikbaar',
-        'available_hint' => '— staat op de server, niet aan',
+        'available_hint' => '- staat op de server, niet aan',
     ],
 
     'status' => [
@@ -74,14 +74,14 @@ return [
     ],
 
     'tooltip' => [
-        'bundled' => 'gebundeld — zelfde Workshop-item als :title, verwijderen haalt beide weg',
-        'disable' => 'Uitzetten — clients downloaden hem niet meer, bestanden blijven op de server',
-        'delete' => 'Verwijderen — haalt de mod én de bestanden van de server',
+        'bundled' => 'gebundeld - zelfde Workshop-item als :title, verwijderen haalt beide weg',
+        'disable' => 'Uitzetten - clients downloaden hem niet meer, bestanden blijven op de server',
+        'delete' => 'Verwijderen - haalt de mod én de bestanden van de server',
         'changelog' => 'Changelog tonen',
     ],
 
     'changelog' => [
-        'title' => 'Changelog — :mod',
+        'title' => 'Changelog - :mod',
         'empty' => 'Steam gaf geen changelog terug (die pagina is rate-limited). Bekijk hem op Steam.',
         'open_steam' => 'Bekijk op Steam',
         'close' => 'Sluiten',
@@ -120,16 +120,16 @@ return [
     'alert' => [
         'crash' => 'De laatste start is mislukt: :reason. De server laadt de wereld niet tot dit is opgelost.',
         'missing_dep' => '":dep" is vereist door :mods maar staat niet aan.',
-        'missing_dep_uninstalled' => '":dep" is vereist door :mods maar staat niet op deze server — voeg het Workshop-item toe, anders laadt de mod nooit.',
+        'missing_dep_uninstalled' => '":dep" is vereist door :mods maar staat niet op deze server - voeg het Workshop-item toe, anders laadt de mod nooit.',
         'orphans' => 'Staat aan maar is niet geïnstalleerd: :mods. Deze regels doen niets.',
-        'awaiting_download' => '{1} :count mod is nog niet gedownload — herstart de server.|[2,*] :count mods zijn nog niet gedownload — herstart de server.',
+        'awaiting_download' => '{1} :count mod is nog niet gedownload - herstart de server.|[2,*] :count mods zijn nog niet gedownload - herstart de server.',
         'needs_restart' => '{1} :count mod staat aan maar is nog niet geladen.|[2,*] :count mods staan aan maar zijn nog niet geladen.',
         'build_mismatch' => 'Deze mods vermelden geen ondersteuning voor build :build: :mods.',
         'maps_missing' => 'Kaart-mods gevonden die niet in Map= staan: :maps.',
         'mod_errors' => 'Deze mods gaven fouten tijdens de laatste start: :mods.',
-        'order_changed' => 'De load-order is gewijzigd maar nog niet actief — herstart de server om hem toe te passen.',
+        'order_changed' => 'De load-order is gewijzigd maar nog niet actief - herstart de server om hem toe te passen.',
         'duplicates' => 'Dubbele regels zijn automatisch verwijderd: :mods.',
-        'updates' => '{1} :count mod heeft een nieuwere versie op Steam — herstart de server om bij te werken.|[2,*] :count mods hebben een nieuwere versie op Steam — herstart de server om bij te werken.',
+        'updates' => '{1} :count mod heeft een nieuwere versie op Steam - herstart de server om bij te werken.|[2,*] :count mods hebben een nieuwere versie op Steam - herstart de server om bij te werken.',
     ],
 
     'bulk' => [
@@ -150,7 +150,7 @@ return [
     ],
 
     'empty' => [
-        'active' => 'Nog geen mods aan — zet er hieronder een aan.',
+        'active' => 'Nog geen mods aan - zet er hieronder een aan.',
         'available' => 'Nog niets op de server. Voeg een mod toe en herstart om te downloaden.',
     ],
 
@@ -178,15 +178,15 @@ return [
         'bulk_disabled' => '{1} :count mod uitgeschakeld|[2,*] :count mods uitgeschakeld',
         'bulk_removed' => '{1} :count mod verwijderd en bestanden gewist|[2,*] :count mods verwijderd en bestanden gewist',
         'bulk_nothing' => 'Niets te doen: de selectie stond al zo.',
-        'disabled' => 'Uitgezet — clients downloaden hem niet meer.',
+        'disabled' => 'Uitgezet - clients downloaden hem niet meer.',
         'files_kept' => 'Uit de config gehaald, maar de bestanden konden niet gewist worden.',
         'refreshed' => 'Vernieuwd.',
-        'sorted' => 'Gesorteerd — frameworks en dependencies bovenaan.',
+        'sorted' => 'Gesorteerd - frameworks en dependencies bovenaan.',
         'cleaned' => 'Opgeruimd.',
         'maps_added' => 'Kaarten toegevoegd aan de config.',
         'restarting' => 'Herstart aangevraagd.',
         'restart_failed' => 'Herstarten mislukt',
-        'config_error' => 'De serverconfig kon niet gelezen worden — er is niets gewijzigd.',
+        'config_error' => 'De serverconfig kon niet gelezen worden - er is niets gewijzigd.',
         'auto_activated' => 'Automatisch aangezet na download',
         'repaired_workshop' => 'Hersteld: ontbrekende Workshop-ID’s toegevoegd zodat clients deze mods kunnen downloaden',
     ],
