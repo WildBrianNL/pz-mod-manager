@@ -6,6 +6,8 @@ use App\Enums\SubuserPermission;
 use App\Models\Server;
 use App\Repositories\Daemon\DaemonFileRepository;
 use BackedEnum;
+use Carbon\Carbon;
+use Carbon\CarbonInterval;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -56,7 +58,7 @@ class ManageMods extends Page
     public array $locks = [];
 
     /** @var array<string,int> */
-    public array $stats = ['active' => 0, 'available' => 0, 'restart' => 0, 'errors' => 0];
+    public array $stats = ['active' => 0, 'available' => 0, 'restart' => 0, 'updates' => 0, 'errors' => 0];
 
     /**
      * Auto-update settings as edited on this page. Bound to inputs, so every
@@ -74,10 +76,27 @@ class ManageMods extends Page
      */
     public array $autoRun = [];
 
+    /**
+     * Restarts this plugin performed, newest first, already formatted for the
+     * view. Restarts started anywhere else are not in here and cannot be: the
+     * panel's own power button leaves nothing behind that says who pressed it
+     * or why.
+     *
+     * @var array<int,array<string,mixed>>
+     */
+    public array $history = [];
+
+    /**
+     * Workshop ids SteamCMD still thinks it has installed while the server is
+     * not configured to run them. These are the mods that reappear under
+     * Available after every restart, however often they are deleted.
+     *
+     * @var string[]
+     */
+    public array $ghosts = [];
+
     /** Whether the egg re-runs steamcmd on boot; without it auto-restart is refused. */
     public bool $eggAutoUpdate = true;
-
-    public bool $autoOpen = false;
 
     public string $search = '';
 
@@ -167,7 +186,7 @@ class ManageMods extends Page
         $this->configError = $ini['error'];
         if (!$ini['ok']) {
             $this->active = $this->available = $this->alerts = [];
-            $this->stats = ['active' => 0, 'available' => 0, 'restart' => 0, 'errors' => 0];
+            $this->stats = ['active' => 0, 'available' => 0, 'restart' => 0, 'updates' => 0, 'errors' => 0];
 
             return;
         }
@@ -205,6 +224,18 @@ class ManageMods extends Page
 
         $this->locks = app(StateStore::class)->read($server)['locks'];
 
+        // Cached briefly: it is another Wings read, and the answer only changes
+        // when somebody deletes a mod or the server boots.
+        $configured = array_flip($ini['workshopItems']);
+        $this->ghosts = array_values(array_filter(
+            Cache::remember(
+                "pzmm:manifest:{$server->id}",
+                now()->addSeconds(60),
+                fn () => app(ModScanner::class)->installedManifest($server)
+            ),
+            fn ($id) => !isset($configured[$id])
+        ));
+
         $active = [];
         $seen = [];
         $duplicates = [];
@@ -232,6 +263,10 @@ class ManageMods extends Page
             'active' => count($active),
             'available' => count($available),
             'restart' => count(array_filter($active, fn ($r) => in_array($r['status'], ['restart', 'downloading'], true))),
+            // Enabled mods Steam has a newer copy of. This is the number an
+            // operator acts on, so it gets a tile of its own rather than
+            // living only in an alert further down the page.
+            'updates' => count(array_filter($active, fn ($r) => $r['update_available'])),
             'errors' => array_sum(array_map(fn ($r) => $r['errors'], $active)),
         ];
         $this->alerts = $this->buildAlerts($active, $duplicates, $awaitingDownload, $log, $ini);
@@ -509,6 +544,30 @@ class ManageMods extends Page
                 'text' => trans_choice('pzmm::messages.alert.updates', count($updatable), ['count' => count($updatable)])
                     . ' ' . implode(', ', array_column($updatable, 'name')),
                 'action' => $this->canRestart() ? ['method' => 'restartServer', 'arg' => null, 'label' => trans('pzmm::messages.action.restart_now')] : null,
+            ];
+        }
+
+        // Not enabled, so nobody loads it, so nothing is broken by leaving it.
+        // Said out loud because the alternative is an operator seeing "update
+        // available" on the page and restarting a populated server for a mod
+        // that is not even in the load order.
+        $idle = array_filter($this->available, fn ($r) => $r['update_available']);
+        if ($idle) {
+            $alerts[] = [
+                'type' => 'info',
+                'text' => trans_choice('pzmm::messages.alert.updates_idle', count($idle), ['count' => count($idle)])
+                    . ' ' . implode(', ', array_column($idle, 'name')),
+                'action' => null,
+            ];
+        }
+
+        if ($this->ghosts) {
+            $alerts[] = [
+                'type' => 'warning',
+                'text' => trans_choice('pzmm::messages.alert.ghosts', count($this->ghosts), ['count' => count($this->ghosts)]),
+                'action' => $this->canWrite()
+                    ? ['method' => 'forgetGhosts', 'arg' => null, 'label' => trans('pzmm::messages.action.clean_up')]
+                    : null,
             ];
         }
 
@@ -864,6 +923,10 @@ class ManageMods extends Page
             } catch (\Throwable $e) {
                 Notification::make()->title(trans('pzmm::messages.notify.files_kept'))->warning()->send();
             }
+
+            // And out of SteamCMD's own record, or the next boot downloads it
+            // again and it reappears under Available.
+            app(ModScanner::class)->forgetInstalled($server, [$workshopId]);
         }
 
         $this->forgetCaches();
@@ -1087,6 +1150,8 @@ class ManageMods extends Page
             } catch (\Throwable $e) {
                 $filesKept = true;
             }
+
+            app(ModScanner::class)->forgetInstalled($server, array_map('strval', array_keys($workshopIds)));
         }
 
         $count = count($doomed);
@@ -1102,15 +1167,104 @@ class ManageMods extends Page
             ->success()->send();
     }
 
+    /**
+     * Tell SteamCMD to forget Workshop items the server is not configured to
+     * run, and delete whatever they left on disk.
+     *
+     * Deleting a mod through this page has always removed the files and the
+     * config line, but never this, so every one of them came back on the next
+     * boot. Servers that have been running a while have collected a pile.
+     */
+    public function forgetGhosts(): void
+    {
+        abort_unless($this->canWrite(), 403);
+        if (!$this->ghosts) {
+            return;
+        }
+
+        $server = $this->getServer();
+        $ids = $this->ghosts;
+
+        try {
+            app(DaemonFileRepository::class)->setServer($server)
+                ->deleteFiles('/steamapps/workshop/content/' . ModScanner::APP_ID, $ids);
+        } catch (\Throwable $e) {
+            // Files that were already gone are the common case here, and the
+            // manifest entry is the half that actually brings them back.
+        }
+
+        $done = app(ModScanner::class)->forgetInstalled($server, $ids);
+
+        Cache::forget("pzmm:manifest:{$server->id}");
+        $this->forgetCaches();
+        $this->load();
+
+        Notification::make()
+            ->title(trans_choice('pzmm::messages.notify.ghosts_cleared', count($ids), ['count' => count($ids)]))
+            ->body($done ? '' : trans('pzmm::messages.notify.ghosts_failed'))
+            ->{$done ? 'success' : 'warning'}()
+            ->send();
+    }
+
     public function restartServer(): void
     {
         abort_unless($this->canRestart(), 403);
         try {
-            app(PowerService::class)->setServer($this->getServer())->send('restart');
-            Notification::make()->title(trans('pzmm::messages.notify.restarting'))->success()->send();
+            // Goes through the auto-update service rather than straight to the
+            // power endpoint, so this restart gets the same backup and the same
+            // line in the history as one the plugin decides on by itself.
+            $result = app(AutoUpdateService::class)->restartManually(
+                $this->getServer(),
+                $this->restartWhy(),
+                (string) (auth()->user()?->username ?? auth()->user()?->email ?? '')
+            );
+
+            $this->loadAuto($this->getServer());
+
+            Notification::make()
+                ->title(trans('pzmm::messages.notify.restarting'))
+                ->body(match (true) {
+                    // "Off" and "on but it would not start" are different
+                    // problems, and telling someone to switch on a setting they
+                    // already switched on reads as the setting not having saved.
+                    !$result['wanted_backup'] => trans('pzmm::messages.notify.restart_no_backup'),
+                    $result['backup_id'] === null => trans('pzmm::messages.notify.restart_backup_failed'),
+                    $result['backup_done'] => trans('pzmm::messages.notify.restart_backup_done'),
+                    default => trans('pzmm::messages.notify.restart_backup_running'),
+                })
+                ->success()->send();
         } catch (\Throwable $e) {
             Notification::make()->title(trans('pzmm::messages.notify.restart_failed'))->body($e->getMessage())->danger()->send();
         }
+    }
+
+    /**
+     * Enabled mods Steam has a newer copy of.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function updatesWaiting(): array
+    {
+        return array_values(array_filter($this->active, fn ($row) => $row['update_available'] ?? false));
+    }
+
+    /**
+     * One line saying what this restart is for, from what the page already
+     * knows. Guessed from the alerts rather than asked, because a dialog that
+     * demands a reason before restarting a broken server is a dialog people
+     * learn to click through.
+     */
+    private function restartWhy(): string
+    {
+        $updates = count($this->updatesWaiting());
+        if ($updates > 0) {
+            return trans_choice('pzmm::messages.history.why_updates', $updates, ['count' => $updates]);
+        }
+        if (($this->stats['restart'] ?? 0) > 0) {
+            return trans_choice('pzmm::messages.history.why_pending', $this->stats['restart'], ['count' => $this->stats['restart']]);
+        }
+
+        return trans('pzmm::messages.history.why_manual');
     }
 
     public function openChangelog(string $modId): void
@@ -1150,17 +1304,80 @@ class ManageMods extends Page
         $state = app(StateStore::class)->read($server);
         $this->auto = $state['auto'];
         $this->autoRun = $state['run'];
+        $this->history = $this->formatHistory($state['history']);
         $this->eggAutoUpdate = app(AutoUpdateService::class)->autoUpdateEnabled($server);
+    }
+
+    /**
+     * Turn stored restarts into rows the template can print without deciding
+     * anything.
+     *
+     * The version columns are the awkward part. `modversion` in `mod.info` is
+     * optional and most mods leave it out, so a change is shown as a version
+     * pair when both sides declared one and as a pair of Workshop timestamps
+     * when they did not. Never a mix, and never a blank arrow implying a version
+     * that was never recorded.
+     *
+     * @param  array<int,array<string,mixed>>  $history
+     * @return array<int,array<string,mixed>>
+     */
+    private function formatHistory(array $history): array
+    {
+        $zone = config('app.timezone');
+        $rows = [];
+
+        foreach ($history as $entry) {
+            $changes = [];
+            foreach ($entry['changes'] as $change) {
+                $from = (string) $change['from'];
+                $to = (string) $change['to'];
+                $pair = null;
+
+                if ($from !== '' && $to !== '' && $from !== $to) {
+                    $pair = [$from, $to];
+                } elseif ($change['from_at'] > 0 && $change['to_at'] > 0 && $change['from_at'] !== $change['to_at']) {
+                    $pair = [
+                        Carbon::createFromTimestamp($change['from_at'])->setTimezone($zone)->format('j M H:i'),
+                        Carbon::createFromTimestamp($change['to_at'])->setTimezone($zone)->format('j M H:i'),
+                    ];
+                }
+
+                $changes[] = [
+                    'kind' => $change['kind'],
+                    'name' => $change['name'] !== '' ? $change['name'] : $change['id'],
+                    'pair' => $pair,
+                    // No pair means the restart never got far enough to record
+                    // the other side, which is worth saying rather than hiding.
+                    'from_only' => $pair === null
+                        ? ($from !== '' ? $from : ($change['from_at'] > 0
+                            ? Carbon::createFromTimestamp($change['from_at'])->setTimezone($zone)->format('j M H:i')
+                            : ''))
+                        : '',
+                ];
+            }
+
+            $at = Carbon::createFromTimestamp($entry['at'])->setTimezone($zone);
+            $rows[] = [
+                'at' => $at->format('Y-m-d H:i'),
+                'ago' => $at->diffForHumans(),
+                'trigger' => $entry['trigger'],
+                'reason' => $entry['reason'],
+                'by' => $entry['by'],
+                'changes' => $changes,
+                'players' => $entry['players'],
+                'backup_id' => $entry['backup_id'],
+                'outcome' => $entry['outcome'],
+                'note' => $entry['note'],
+                'down' => $entry['down'] > 0 ? CarbonInterval::seconds($entry['down'])->cascade()->forHumans(short: true) : null,
+            ];
+        }
+
+        return $rows;
     }
 
     public function refreshAuto(): void
     {
         $this->loadAuto($this->getServer());
-    }
-
-    public function toggleAutoPanel(): void
-    {
-        $this->autoOpen = !$this->autoOpen;
     }
 
     public function saveAutoUpdate(): void
@@ -1227,12 +1444,22 @@ class ManageMods extends Page
     public function checkAutoNow(): void
     {
         $server = $this->getServer();
-        $found = app(AutoUpdateService::class)->detect($server, $this->auto);
+        // Fresh, always. Somebody pressing this has usually just watched a mod
+        // update land on Steam and wants to know about now, and a cached answer
+        // that says everything is fine is exactly the thing that made this
+        // button untrustworthy.
+        $this->forgetCaches();
+        $found = app(AutoUpdateService::class)->detect($server, $this->auto, true);
+        $this->load();
 
         Notification::make()
             ->title($found['note'])
-            ->body(implode("\n", array_slice($found['detail'], 0, 8)))
-            ->{$found['reason'] ? 'warning' : 'success'}()
+            ->body(implode("\n", array_slice($found['detail'], 0, 10)))
+            ->{match (true) {
+                (bool) $found['reason'] => 'warning',
+                $found['degraded'] => 'danger',
+                default => 'success',
+            }}()
             ->send();
     }
 
@@ -1250,34 +1477,6 @@ class ManageMods extends Page
     private function forgetCaches(): void
     {
         Cache::forget("pzmm:log:{$this->getServer()->id}");
-    }
-
-    private function loadAutoUpdateStatus(Server $server): void
-    {
-        $pendingAt = (int) Cache::get($this->pendingRestartKey($server), 0);
-        $status = Cache::get($this->autoUpdateStatusKey($server), []);
-
-        $state = (string) ($status['state'] ?? '');
-        if ($state === '') {
-            $state = $pendingAt > now()->timestamp ? 'pending_restart' : 'idle';
-        }
-
-        $checkedAt = (int) ($status['checked_at'] ?? 0);
-        $statusPendingAt = (int) ($status['pending_at'] ?? 0);
-        $summary = trim((string) ($status['summary'] ?? ''));
-        $details = array_values(array_filter(array_map(
-            fn ($line) => trim((string) $line),
-            is_array($status['details'] ?? null) ? $status['details'] : []
-        ), fn ($line) => $line !== ''));
-        $pendingAt = max($pendingAt, $statusPendingAt);
-
-        $this->autoUpdate = [
-            'state' => $state,
-            'checked_at' => $checkedAt > 0 ? Carbon::createFromTimestamp($checkedAt)->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s') : null,
-            'pending_at' => $pendingAt > now()->timestamp ? Carbon::createFromTimestamp($pendingAt)->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s') : null,
-            'summary' => $summary !== '' ? $summary : null,
-            'details' => array_slice($details, 0, 40),
-        ];
     }
 
     // ------------------------------------------------------------------ view

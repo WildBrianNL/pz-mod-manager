@@ -365,5 +365,168 @@ ok(SteamClient::$calls === 1, '40 mods kosten een Steam-aanroep, niet 40', Steam
 // Nothing outdated means no restart either, however many mods there are.
 ok(PowerService::$sent === [], '40 mods, niets verouderd: geen herstart', PowerService::$sent);
 
+// ------------------------------------ de fase-overgang houdt stale_ids vast
+
+// duringWarning() bouwde de run-array voor de verificatiefase opnieuw op en
+// liet stale_ids daarbij vallen, waarna duringVerify() terugviel op "is er iets
+// verouderd" - precies de test die 2.5.1 verving. De fix zat er wel, de
+// overgang maakte hem ongedaan, en de test die dat moest zien zette de
+// verificatiefase met de hand klaar en liep er dus omheen.
+PowerService::reset();
+$now = time();
+[$svc, $store] = service(
+    ['enabled' => true, 'backup' => false, 'countdown_seconds' => 0],
+    ['phase' => 'warning', 'reason' => 'mod', 'restart_at' => $now, 'started_at' => $now - 300,
+     'announced' => [5], 'stale_ids' => ['111'], 'build_before' => 7],
+    ['steam' => ['111' => ['updated' => 999_999, 'title' => 'Mod A']]]
+);
+$svc->tickServer(new Server());
+ok(($store->state['run']['stale_ids'] ?? null) === ['111'], 'stale_ids overleeft de overgang naar verifieren', $store->state['run']['stale_ids'] ?? null);
+ok(($store->state['run']['build_before'] ?? null) === 7, 'build_before overleeft de overgang ook', $store->state['run']['build_before'] ?? null);
+
+// Zonder dat is dit een valse mislukking: de mod waarvoor herstart werd is bij,
+// een tweede update kwam er tijdens de herstart bij, en de hele functie zou
+// zichzelf uitzetten. Nu wordt alleen gekeken naar waar voor herstart is.
+$store->state['run']['verify_after'] = $now - 10;
+$store->state['run']['verify_before'] = $now + 600;
+IniService::$mods = ['ModA', 'ModB'];
+ModScanner::$installed = [
+    ['mod_id' => 'ModA', 'workshop_id' => '111', 'installed_at' => 1_000_000],
+    ['mod_id' => 'ModB', 'workshop_id' => '222', 'installed_at' => 1000],
+];
+SteamClient::$details = [
+    '111' => ['updated' => 1_000_000, 'title' => 'Mod A'],
+    '222' => ['updated' => 999_999, 'title' => 'Mod B'],
+];
+$svc->tickServer(new Server());
+ok($store->state['run']['phase'] === 'idle', 'na de echte overgang: geen valse mislukking', $store->state['run']['phase']);
+ok($store->state['auto']['enabled'] === true, 'na de echte overgang: blijft aan');
+
+// ---------------------------------------------------------- geschiedenis
+
+PowerService::reset();
+Server::reset();
+$now = time();
+[$svc, $store] = service(
+    ['enabled' => true, 'backup' => false, 'countdown_seconds' => 0],
+    ['phase' => 'warning', 'reason' => 'mod', 'restart_at' => $now, 'started_at' => $now - 300,
+     'announced' => [5], 'players_at_start' => 2, 'stale_ids' => ['111'],
+     'stale_before' => ['111' => ['id' => '111', 'name' => 'Mod A', 'version' => '1.0', 'at' => 1000]]],
+    ['steam' => ['111' => ['updated' => 999_999, 'title' => 'Mod A']]]
+);
+$svc->tickServer(new Server());
+$entry = $store->state['history'][0] ?? [];
+ok(count($store->state['history'] ?? []) === 1, 'een herstart schrijft een regel in de geschiedenis', count($store->state['history'] ?? []));
+ok(($entry['outcome'] ?? null) === 'pending', 'de regel staat op pending tot de verificatie klaar is', $entry['outcome'] ?? null);
+ok(($entry['changes'][0]['from'] ?? null) === '1.0', 'de oude versie is vastgelegd voordat hij van schijf verdween', $entry['changes'][0] ?? null);
+ok(($entry['changes'][0]['name'] ?? null) === 'Mod A', 'de mod staat met naam in de regel', $entry['changes'][0] ?? null);
+ok(($entry['players'] ?? null) === 2, 'het aantal spelers staat erbij', $entry['players'] ?? null);
+
+// De verificatie vult de andere helft in.
+$store->state['run']['verify_after'] = $now - 10;
+$store->state['run']['verify_before'] = $now + 600;
+ModScanner::$installed = [['mod_id' => 'ModA', 'workshop_id' => '111', 'installed_at' => 2_000_000, 'version' => '1.1']];
+SteamClient::$details = ['111' => ['updated' => 2_000_000, 'title' => 'Mod A']];
+$svc->tickServer(new Server());
+$entry = $store->state['history'][0] ?? [];
+ok(($entry['outcome'] ?? null) === 'verified', 'geslaagde verificatie sluit de regel af', $entry['outcome'] ?? null);
+ok(($entry['changes'][0]['to'] ?? null) === '1.1', 'de nieuwe versie wordt na de herstart bijgeschreven', $entry['changes'][0] ?? null);
+
+// Een mislukte verificatie laat de regel niet op pending staan.
+PowerService::reset();
+$now = time();
+[$svc, $store] = service(
+    ['enabled' => true],
+    ['phase' => 'verifying', 'reason' => 'mod', 'stale_ids' => ['111'], 'restarted_at' => $now - 600,
+     'verify_after' => $now - 10, 'verify_before' => $now + 600, 'last_restart_at' => $now - 600],
+    ['steam' => ['111' => ['updated' => 999_999, 'title' => 'Mod A']]]
+);
+$store->state['history'] = [['at' => $now - 600, 'trigger' => 'auto', 'reason' => 'mod',
+    'changes' => [['kind' => 'mod', 'id' => '111', 'name' => 'Mod A', 'from' => '1.0', 'to' => '', 'from_at' => 1000, 'to_at' => 0]],
+    'players' => null, 'backup_id' => null, 'outcome' => 'pending', 'note' => '', 'down' => 0]];
+$svc->tickServer(new Server());
+$entry = $store->state['history'][0] ?? [];
+ok(($entry['outcome'] ?? null) === 'failed', 'mislukte verificatie markeert de regel als mislukt', $entry['outcome'] ?? null);
+ok(str_contains((string) ($entry['note'] ?? ''), 'still not updated'), 'en zet de reden erbij', $entry['note'] ?? null);
+// De view toont dit als "na X weer online". Bij de meest voorkomende mislukking
+// komt de server juist niet terug, dus daar mag geen hersteltijd staan.
+ok(($entry['down'] ?? null) === 0, 'een mislukte herstart krijgt geen hersteltijd', $entry['down'] ?? null);
+
+// ------------------------------ dode Workshop-items zijn geen storing
+
+// Een verwijderde of prive gezette mod is informatie, geen mislukte controle.
+// Toen die twee hetzelfde waren, zette een handvol dode items de backoff aan en
+// meldde de pagina de hele server als niet gecontroleerd.
+SteamClient::$degraded = false;
+[$svc, $store] = service(
+    ['enabled' => true, 'check_game' => false],
+    [],
+    [
+        'mods' => ['ModA', 'ModB'],
+        'installed' => [
+            ['mod_id' => 'ModA', 'workshop_id' => '111', 'installed_at' => 1000],
+            ['mod_id' => 'ModB', 'workshop_id' => '222', 'installed_at' => 1000],
+        ],
+        // Steam antwoordde wel, maar kent 222 niet meer.
+        'steam' => ['111' => ['updated' => 1000, 'title' => 'Mod A']],
+    ]
+);
+$found = $svc->detect(new Server(), $store->state['auto']);
+ok($found['degraded'] === false, 'een verdwenen mod is geen storing', $found['degraded']);
+ok($found['reason'] === null, 'en levert geen herstart op', $found['reason']);
+ok(str_contains($found['note'], 'up to date'), 'de melding blijft eerlijk positief', $found['note']);
+
+// --------------------------------------------------- Steam niet bereikbaar
+
+// De ergste storing die deze plugin kan hebben is een groen vinkje over
+// ontbrekende informatie. Onbereikbaar Steam mag nooit "alles is bij" heten.
+PowerService::reset();
+SteamClient::$degraded = true;
+[$svc, $store] = service(
+    ['enabled' => true, 'check_game' => false],
+    [],
+    ['steam' => ['111' => ['updated' => 1000, 'title' => 'Mod A']]]
+);
+$found = $svc->detect(new Server(), $store->state['auto']);
+ok($found['degraded'] === true, 'onbereikbaar Steam wordt gemeld', $found['degraded']);
+ok($found['reason'] === null, 'onbereikbaar Steam lokt geen herstart uit', $found['reason']);
+ok(!str_contains($found['note'], 'up to date'), 'en zegt niet dat alles bij is', $found['note']);
+SteamClient::$degraded = false;
+
+// ----------------------------------- uitgeschakelde mods worden wel gemeld
+
+// Ze mogen geen herstart uitlokken, maar verzwijgen is precies waardoor "Check
+// now" leek te liegen: de server haalde ze bij een herstart wel binnen.
+[$svc, $store] = service(
+    ['enabled' => true, 'check_game' => false],
+    [],
+    [
+        'mods' => ['ModA'],
+        'installed' => [
+            ['mod_id' => 'ModA', 'workshop_id' => '111', 'installed_at' => 1000],
+            ['mod_id' => 'ModB', 'workshop_id' => '222', 'installed_at' => 1000],
+        ],
+        'steam' => [
+            '111' => ['updated' => 1000, 'title' => 'Mod A'],
+            '222' => ['updated' => 999_999, 'title' => 'Mod B'],
+        ],
+    ]
+);
+$found = $svc->detect(new Server(), $store->state['auto']);
+ok($found['reason'] === null, 'uitgeschakelde verouderde mod: geen reden om te herstarten', $found['reason']);
+ok(count($found['idle']) === 1, 'uitgeschakelde verouderde mod: wel gemeld', $found['idle']);
+ok(($found['idle'][0]['id'] ?? null) === '222', 'en met de juiste id', $found['idle'][0] ?? null);
+
+// ------------------------------------- Check now negeert de cache
+
+SteamClient::$ages = [];
+[$svc, $store] = service(['enabled' => true, 'check_game' => false]);
+$svc->detect(new Server(), $store->state['auto']);
+ok(SteamClient::$ages === [60], 'de planner mag een minuut oude gegevens hergebruiken', SteamClient::$ages);
+
+SteamClient::$ages = [];
+$svc->detect(new Server(), $store->state['auto'], true);
+ok(SteamClient::$ages === [0], 'Check now vraagt het opnieuw op, hoe vers de cache ook is', SteamClient::$ages);
+
 echo $fail ? "\nRESULT: $fail gefaald\n" : "\nRESULT: alles ok\n";
 exit($fail ? 1 : 0);

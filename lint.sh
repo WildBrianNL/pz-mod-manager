@@ -70,5 +70,6 @@ $REMOTE "'
   docker cp /tmp/pzmm-test $CONTAINER:/tmp/pzmm-test >/dev/null
   docker exec $CONTAINER php /tmp/pzmm-test/tests/StateStoreTest.php
   docker exec $CONTAINER php /tmp/pzmm-test/tests/PhaseTest.php
+  docker exec $CONTAINER php /tmp/pzmm-test/tests/ManifestTest.php
   docker exec $CONTAINER rm -rf /tmp/pzmm-test
 '"

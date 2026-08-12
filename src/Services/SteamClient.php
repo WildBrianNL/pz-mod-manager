@@ -18,6 +18,24 @@ class SteamClient
     private const BACKOFF_SECONDS = 600;
 
     /**
+     * Steam answered about this id and had nothing: deleted, hidden, or made
+     * private. Remembered for a while so the same handful of dead Workshop
+     * entries do not put every single check back on the wire. Without this, one
+     * removed mod is enough to make a warm cache useless.
+     */
+    private const GONE_SECONDS = 21600;
+
+    /**
+     * Whether the most recent details() call had to give up on something.
+     *
+     * Per call, deliberately, and not the same question as "is the backoff
+     * set". A check that answered every id out of a fresh cache is complete
+     * even if some unrelated fetch failed nine minutes ago, and reporting that
+     * one as incomplete puts a permanent warning on a page that is fine.
+     */
+    private bool $incomplete = false;
+
+    /**
      * Metadata for workshop items, keyed by id. Missing/unreachable items are
      * simply absent - every caller must degrade gracefully.
      *
@@ -30,12 +48,13 @@ class SteamClient
         $ids = array_values(array_unique(array_filter($ids)));
         $out = [];
         $missing = [];
+        $this->incomplete = false;
 
         foreach ($ids as $id) {
             $cached = $this->readCachedDetail($id, $maxAgeSeconds);
             if ($cached !== null) {
                 $out[$id] = $cached;
-            } else {
+            } elseif (!Cache::get("pzmm:steam:gone:$id")) {
                 $missing[] = $id;
             }
         }
@@ -45,17 +64,37 @@ class SteamClient
         // after a failed fetch the endpoint is left alone for a while and stale
         // cache is served instead. Callers already handle missing metadata.
         if ($missing && Cache::get(self::BACKOFF_KEY)) {
+            $this->incomplete = true;
+
             return $out + $this->staleFor($missing);
         }
 
         $cacheHours = max(1, (int) config('pz-mod-manager.cache.steam_hours', 12));
-        foreach (array_chunk($missing, 50) as $chunk) {
+        $chunks = array_chunk($missing, 50);
+        foreach ($chunks as $i => $chunk) {
             $fetched = $this->fetchDetails($chunk);
-            if ($fetched === []) {
-                Cache::put(self::BACKOFF_KEY, true, now()->addSeconds(self::BACKOFF_SECONDS));
-                $out += $this->staleFor($chunk);
 
-                continue;
+            // null is "Steam did not answer", which is a real outage and worth
+            // backing off from. An empty array is "Steam answered and those
+            // items are gone", which is information, not a failure. Treating
+            // the two the same let a batch of deleted mods trip the backoff and
+            // then report the whole server as unchecked.
+            if ($fetched === null) {
+                $this->incomplete = true;
+                Cache::put(self::BACKOFF_KEY, true, now()->addSeconds(self::BACKOFF_SECONDS));
+
+                // Stop, do not carry on down the list. Steam being unreachable
+                // for one batch of fifty means it is unreachable for the next
+                // one too, and each attempt costs a full HTTP timeout. Three
+                // batches used to mean three timeouts in a row, which on a
+                // server with 126 Workshop items put a page request past PHP's
+                // thirty second limit and turned an honest "could not reach
+                // Steam" into a 500.
+                foreach (array_slice($chunks, $i) as $rest) {
+                    $out += $this->staleFor($rest);
+                }
+
+                return $out;
             }
             foreach ($fetched as $id => $meta) {
                 Cache::put("pzmm:steam:$id", [
@@ -64,9 +103,38 @@ class SteamClient
                 ], now()->addHours($cacheHours));
                 $out[$id] = $meta;
             }
+
+            foreach (array_diff($chunk, array_keys($fetched)) as $id) {
+                Cache::put("pzmm:steam:gone:$id", true, now()->addSeconds(self::GONE_SECONDS));
+            }
         }
 
         return $out;
+    }
+
+    /**
+     * True when the last details() call could not reach Steam for some of what
+     * it was asked about, and answered from stale cache instead.
+     *
+     * Without this a caller cannot tell "Steam says everything is current" from
+     * "Steam said nothing and you are looking at yesterday's answer". Those two
+     * must never be reported to an operator with the same words.
+     */
+    public function degraded(): bool
+    {
+        return $this->incomplete;
+    }
+
+    /**
+     * Drop the backoff so the next call really contacts Steam.
+     *
+     * Only for a check somebody asked for by hand. The scheduler must keep
+     * backing off, or a Steam outage turns into us hammering it every five
+     * minutes for every server on the panel.
+     */
+    public function clearBackoff(): void
+    {
+        Cache::forget(self::BACKOFF_KEY);
     }
 
     /**
@@ -129,20 +197,30 @@ class SteamClient
         return array_values(array_unique($m[1] ?? []));
     }
 
-    /** @return array<string,array<string,mixed>> */
-    private function fetchDetails(array $ids): array
+    /**
+     * @return ?array<string,array<string,mixed>>
+     *         null when Steam could not be reached or answered with something
+     *         that is not a response at all. An empty array means Steam did
+     *         answer and knows nothing about any of these ids, which is a fact
+     *         about the ids rather than a fault on our side.
+     */
+    private function fetchDetails(array $ids): ?array
     {
         if (!$ids) {
             return [];
         }
 
         try {
-            $json = Http::asForm()->timeout(15)->post(self::DETAILS, [
+            $json = Http::asForm()->timeout(10)->post(self::DETAILS, [
                 'itemcount' => count($ids),
                 'publishedfileids' => array_values($ids),
             ])->json();
         } catch (\Throwable $e) {
-            return [];
+            return null;
+        }
+
+        if (!is_array($json) || !isset($json['response']['publishedfiledetails'])) {
+            return null;
         }
 
         $out = [];

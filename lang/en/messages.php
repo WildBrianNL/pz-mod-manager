@@ -8,8 +8,9 @@ return [
     'auto_activate_hint' => 'Try to enable the mod immediately so a single restart is enough. Verified and corrected automatically after download.',
     'auto' => [
         'title' => 'Auto-restart on updates',
+        'section' => 'Auto-restart',
         'settings' => 'Settings',
-        'hide' => 'Hide',
+        'settings_hint' => 'warning time, backups, messages',
         'save' => 'Save',
         'check_now' => 'Check now',
         'clear_failure' => 'Clear and re-enable',
@@ -18,6 +19,27 @@ return [
         'needs_flag' => 'This server does not re-run SteamCMD on boot (AUTO_UPDATE is not 1), so a restart would download nothing.',
         'set_flag' => 'Set AUTO_UPDATE to 1',
         'placeholders' => 'Every message may use :minutes, :seconds and :reason. Leave one empty to send nothing.',
+        'advanced' => 'Advanced: timings and the messages players see',
+
+        'watching' => '{0} Watching no enabled mods|{1} Watching 1 enabled mod|[2,*] Watching :count enabled mods',
+        'watching_game' => 'and the game build.',
+        'watching_nogame' => 'only. Game updates are not being watched.',
+        'checked' => 'Checked :ago, next check at :next.',
+        'next_soon' => 'any moment',
+        'never_checked' => 'Not checked yet. The first check runs on the next scheduler tick.',
+        'last_restart' => 'Last restart :when, :reason.',
+        'no_restarts' => 'No restarts recorded by this plugin yet.',
+
+        'choice' => [
+            'recommended' => '(recommended)',
+            'minutes' => '{1} 1 minute|[2,*] :count minutes',
+            'custom' => ':value (your own value)',
+            'warn_none' => 'No warning, restart straight away',
+            'backup_on' => 'Always, before every restart',
+            'backup_off' => 'Never, restart straight away',
+            'watch_both' => 'Mods and game updates',
+            'watch_mods' => 'Mods only',
+        ],
 
         'phase' => [
             'off' => 'Off. Nothing restarts on its own.',
@@ -34,7 +56,8 @@ return [
             'cooldown_minutes' => 'Minimum gap between restarts (minutes)',
             'backup_wait_seconds' => 'Wait for backup up to (seconds)',
             'backup' => 'Back up before restarting',
-            'check_game' => 'Also check for game updates',
+            'backup_hint' => 'Covers automatic restarts and the Restart button on this page.',
+            'check_game' => 'What to watch',
             'msg_warn' => 'First warning',
             'msg_final' => 'One minute warning',
             'msg_countdown' => 'Countdown',
@@ -42,10 +65,44 @@ return [
         ],
     ],
 
+    'history' => [
+        'title' => 'Restart history',
+        'summary' => 'most recent :when',
+        'scope' => 'Only restarts this plugin performed. A restart from the panel console or the host is not visible here.',
+        'was' => 'was :value, no later version recorded',
+        'down' => 'back up in :time',
+        'by' => 'Started by :who.',
+        'backup' => 'Backup #:id taken first.',
+        'no_backup' => 'No backup taken.',
+        'players' => '{0} Nobody was online.|{1} 1 player online.|[2,*] :count players online.',
+
+        'why_updates' => '{1} To apply 1 mod update|[2,*] To apply :count mod updates',
+        'why_pending' => '{1} To load 1 newly enabled mod|[2,*] To load :count newly enabled mods',
+        'why_manual' => 'Restart requested from the Mods page',
+
+        'trigger' => [
+            'auto' => 'Automatic, :reason update',
+            'manual' => 'Manual',
+        ],
+
+        'reason' => [
+            'update' => 'to apply an update',
+            'manual' => 'started by hand',
+        ],
+
+        'outcome' => [
+            'verified' => 'verified',
+            'failed' => 'failed',
+            'pending' => 'waiting for the server',
+            'unverified' => 'not verified',
+        ],
+    ],
+
     'stat' => [
         'active' => 'Enabled',
         'available' => 'Available',
         'restart' => 'Needs restart',
+        'updates' => 'Update waiting',
         'errors' => 'Mod errors',
     ],
 
@@ -128,8 +185,10 @@ return [
         'maps_missing' => 'Map mods found that are not in Map=: :maps.',
         'mod_errors' => 'These mods reported errors during the last start: :mods.',
         'order_changed' => 'The load order has changed but is not active yet - restart the server to apply it.',
+        'ghosts' => '{1} :count Workshop item was deleted here but SteamCMD still has it on its installed list, so it downloads itself again on the next restart and turns up under Available.|[2,*] :count Workshop items were deleted here but SteamCMD still has them on its installed list, so they download themselves again on the next restart and turn up under Available.',
         'duplicates' => 'Duplicate entries were removed automatically: :mods.',
         'updates' => '{1} :count mod has a newer version on Steam - restart the server to update it.|[2,*] :count mods have a newer version on Steam - restart the server to update them.',
+        'updates_idle' => '{1} No restart needed for this one. :count mod on this server has a newer version on Steam but is not enabled, so nobody loads it and it updates by itself whenever the server next restarts:|[2,*] No restart needed for these. :count mods on this server have a newer version on Steam but are not enabled, so nobody loads them and they update by themselves whenever the server next restarts:',
     ],
 
     'bulk' => [
@@ -185,6 +244,12 @@ return [
         'cleaned' => 'Cleaned up.',
         'maps_added' => 'Maps added to the config.',
         'restarting' => 'Restart requested.',
+        'ghosts_cleared' => '{1} :count Workshop item removed from SteamCMD\'s installed list|[2,*] :count Workshop items removed from SteamCMD\'s installed list',
+        'ghosts_failed' => 'The files were cleaned up, but SteamCMD\'s installed list could not be rewritten, so these may still come back. Check the file permissions on steamapps/workshop.',
+        'restart_backup_done' => 'A backup was taken first and finished before the restart went out.',
+        'restart_backup_running' => 'A backup was started first. It was still running, so the restart went ahead without waiting any longer.',
+        'restart_backup_failed' => 'Backups are switched on, but the panel would not start one (a backup may already be running, or this server is at its backup limit). The restart went ahead anyway.',
+        'restart_no_backup' => 'No backup was taken. Switch that on under Settings if you want one before every restart.',
         'restart_failed' => 'Restart failed',
         'config_error' => 'The server config could not be read - nothing was changed.',
         'auto_activated' => 'Enabled automatically after download',

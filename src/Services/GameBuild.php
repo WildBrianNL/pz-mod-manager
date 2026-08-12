@@ -72,17 +72,21 @@ class GameBuild
      * Cached for a few minutes so a five-minute check interval does not hammer a
      * volunteer-run service, and negative results are not cached at all, so a
      * brief outage does not blind the check for the rest of the hour.
+     *
+     * `$fresh` skips the cache read. It is for the Check now button and nothing
+     * else: somebody who presses it has usually just watched an update land and
+     * wants an answer about now, not about up to ten minutes ago.
      */
-    public function latest(string $appId): ?int
+    public function latest(string $appId, bool $fresh = false): ?int
     {
         $key = "pzmm:build:$appId";
         $cached = Cache::get($key);
-        if (is_int($cached)) {
+        if (!$fresh && is_int($cached)) {
             return $cached;
         }
 
         try {
-            $json = Http::timeout(12)
+            $json = Http::timeout(8)
                 ->withHeaders(['User-Agent' => 'PelicanPZModManager/2.5'])
                 ->get(self::INFO . $appId)
                 ->json();
@@ -104,11 +108,11 @@ class GameBuild
      * @return array{outdated:bool,installed:?int,latest:?int}
      *         `outdated` is only ever true when both numbers are known.
      */
-    public function compare(Server $server): array
+    public function compare(Server $server, bool $fresh = false): array
     {
         $appId = $this->appId($server);
         $installed = $this->installed($server, $appId);
-        $latest = $this->latest($appId);
+        $latest = $this->latest($appId, $fresh);
 
         return [
             'outdated' => $installed !== null && $latest !== null && $latest > $installed,

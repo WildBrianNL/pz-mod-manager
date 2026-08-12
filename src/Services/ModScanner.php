@@ -29,6 +29,181 @@ class ModScanner
     public function __construct(private DaemonFileRepository $files) {}
 
     /**
+     * Workshop ids SteamCMD believes it has installed, whatever is on disk.
+     *
+     * This is the list that decides what comes back after a restart, and it is
+     * not the same list as `WorkshopItems=` or as the folders on disk. Anything
+     * in here that the server is not configured to run is a mod that deletes
+     * itself back onto the server every boot.
+     *
+     * @return string[]
+     */
+    public function installedManifest(Server $server): array
+    {
+        $path = '/steamapps/workshop/appworkshop_' . self::APP_ID . '.acf';
+
+        try {
+            $raw = (string) $this->files->setServer($server)->getContent($path, 20_000_000);
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        $start = strpos($raw, '"WorkshopItemsInstalled"');
+        if ($start === false) {
+            return [];
+        }
+
+        $open = strpos($raw, '{', $start);
+        $end = $open === false ? null : $this->matchBrace($raw, $open);
+        if ($end === null) {
+            return [];
+        }
+
+        preg_match_all('/^\s*"(\d{6,})"/m', substr($raw, $open, $end - $open), $m);
+
+        return array_values(array_unique($m[1] ?? []));
+    }
+
+    /**
+     * Take Workshop items out of SteamCMD's own record of what is installed.
+     *
+     * Deleting the files and the `WorkshopItems=` line is not enough to delete a
+     * mod. SteamCMD keeps `steamapps/workshop/appworkshop_<appid>.acf`, a list of
+     * every item it believes it has installed, and on the next boot it sees an
+     * item in that list with no files on disk and helpfully downloads it again.
+     * The mod is then back on the server, absent from `Mods=`, and shows up under
+     * Available as if it had never been deleted. Every restart, forever.
+     *
+     * The file belongs to Valve's tooling, so this is deliberately timid: it
+     * only removes whole balanced blocks it can find, it verifies the result is
+     * still balanced, and at the first sign of anything unexpected it writes
+     * nothing at all and reports false. A stale entry is a nuisance; a mangled
+     * manifest stops the server downloading anything.
+     *
+     * @param  string[]  $workshopIds
+     * @return bool whether the file was rewritten
+     */
+    public function forgetInstalled(Server $server, array $workshopIds): bool
+    {
+        $workshopIds = array_values(array_unique(array_filter(array_map('strval', $workshopIds))));
+        if (!$workshopIds) {
+            return false;
+        }
+
+        $path = '/steamapps/workshop/appworkshop_' . self::APP_ID . '.acf';
+        $repo = $this->files->setServer($server);
+
+        try {
+            $raw = (string) $repo->getContent($path, 20_000_000);
+        } catch (\Throwable $e) {
+            return false;
+        }
+
+        if ($raw === '' || substr_count($raw, '{') !== substr_count($raw, '}')) {
+            return false;
+        }
+
+        $out = $raw;
+        foreach ($workshopIds as $id) {
+            $out = $this->dropBlocks($out, $id);
+        }
+
+        // Nothing matched, or the walk left the braces uneven. Either way this
+        // file is not getting written.
+        if ($out === $raw || substr_count($out, '{') !== substr_count($out, '}')) {
+            return false;
+        }
+
+        try {
+            $repo->putContent($path, $out);
+        } catch (\Throwable $e) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Remove every `"<id>" { ... }` block from a Valve KeyValues document.
+     *
+     * Walks braces rather than matching with a regex, because the blocks nest
+     * and a greedy match would swallow the rest of the file. Quoted strings are
+     * stepped over so a brace inside a value cannot throw the depth count off.
+     */
+    private function dropBlocks(string $raw, string $id): string
+    {
+        $needle = '"' . $id . '"';
+        $offset = 0;
+
+        while (($at = strpos($raw, $needle, $offset)) !== false) {
+            // Only a key sitting on its own line, never an id appearing as a
+            // value somewhere else in the file.
+            $lineStart = strrpos(substr($raw, 0, $at), "\n");
+            $lineStart = $lineStart === false ? 0 : $lineStart + 1;
+            if (trim(substr($raw, $lineStart, $at - $lineStart)) !== '') {
+                $offset = $at + strlen($needle);
+
+                continue;
+            }
+
+            $open = strpos($raw, '{', $at + strlen($needle));
+            if ($open === false || trim(substr($raw, $at + strlen($needle), $open - $at - strlen($needle))) !== '') {
+                $offset = $at + strlen($needle);
+
+                continue;
+            }
+
+            $end = $this->matchBrace($raw, $open);
+            if ($end === null) {
+                return $raw;
+            }
+
+            $after = strpos($raw, "\n", $end);
+            $cut = $after === false ? strlen($raw) : $after + 1;
+            $raw = substr($raw, 0, $lineStart) . substr($raw, $cut);
+            $offset = $lineStart;
+        }
+
+        return $raw;
+    }
+
+    /** Index of the `}` closing the `{` at $open, or null when it is unbalanced. */
+    private function matchBrace(string $raw, int $open): ?int
+    {
+        $depth = 0;
+        $len = strlen($raw);
+
+        for ($i = $open; $i < $len; $i++) {
+            $c = $raw[$i];
+            if ($c === '"') {
+                // Skip the whole quoted string, escapes included.
+                for ($i++; $i < $len; $i++) {
+                    if ($raw[$i] === '\\') {
+                        $i++;
+
+                        continue;
+                    }
+                    if ($raw[$i] === '"') {
+                        break;
+                    }
+                }
+
+                continue;
+            }
+            if ($c === '{') {
+                $depth++;
+            } elseif ($c === '}') {
+                $depth--;
+                if ($depth === 0) {
+                    return $i;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return array{mods:array<int,array<string,mixed>>,fingerprint:string,ok:bool}
      */
     public function index(Server $server, int $targetBuild = 42): array

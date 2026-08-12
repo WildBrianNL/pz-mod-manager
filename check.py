@@ -68,13 +68,22 @@ def main():
     unbound = sorted(bound - props)
     check(not unbound, "elke wire:model bestaat als property (%d)" % len(bound), ", ".join(unbound))
 
+    # Livewire hangs wire:id on the FIRST element the view emits. Anything
+    # rendered before the page component becomes the component root, and every
+    # wire:model and wire:click on the real page ends up outside it and silently
+    # stops working. A stylesheet in front of the root cost an afternoon once.
+    head = blade[: blade.index("<x-filament-panels::page>")]
+    stray = re.sub(r"@php.*?@endphp|\{\{--.*?--\}\}|\s", "", head, flags=re.S)
+    check(not stray, "niets rendert voor het root-component",
+          "gevonden: " + stray[:60])
+
     # The settings form and the store must agree on field names, or a saved
     # value lands in a key nothing reads.
     store = (ROOT / "src/Services/StateStore.php").read_text()
     defaults = set(re.findall(r"^\s+'(\w+)' => ", store[store.index("AUTO_DEFAULTS"):store.index("AUTO_MIN")], re.M))
     form = set(re.findall(r'wire:model="auto\.(\w+)"', blade))
     form |= set(re.findall(r"'k' => '(\w+)'", blade))
-    strays = sorted(f for f in form if f not in defaults and f not in ("active", "available", "restart", "errors"))
+    strays = sorted(f for f in form if f not in defaults and f not in ("active", "available", "restart", "updates", "errors"))
     check(not strays, "elk instelveld bestaat in AUTO_DEFAULTS (%d)" % len(form), ", ".join(strays))
 
     print()

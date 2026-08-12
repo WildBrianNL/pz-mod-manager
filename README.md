@@ -8,7 +8,7 @@ It adds a **Mods** page to the server panel. The page is visible to anyone with
 file access to the server - not just admins - and only appears for Project
 Zomboid servers.
 
-![The Mods page, with its main features numbered: real load status, adding by ID or collection, auto-sort, alerts that carry their own fix, bulk selection, load-order locks, per-mod update detection and per-mod actions](docs/hero.png)
+![The Mods page, with its main features numbered: a status card that shows what it compared and when, a check that ignores every cache, four named settings with the rest folded away, a count of updates waiting, adding by ID or collection, load-order locks, and per-mod actions](docs/hero.png)
 
 ## Why
 
@@ -106,7 +106,7 @@ update.
 Switch it on under **Auto-restart on updates** on the Mods page. It is off by
 default, per server.
 
-![The auto-restart panel with its parts numbered: the live status line, the master switch, the timing fields, the backup and game-update options, the four configurable announcements, and the check-now button](docs/auto-restart.png)
+![The auto-restart panel with its parts numbered: the status card and the working behind it, the check-now button, the master switch, the four named settings, the note that backups cover the Restart button too, and the Advanced disclosure](docs/auto-restart.png)
 
 What happens when something is outdated:
 
@@ -136,6 +136,11 @@ touched, so pin anything you want to keep.
 
 ### Every setting
 
+Warning time, check interval, backups and what to watch are picked from named
+choices in the panel. The rest sits behind **Advanced**, along with the four
+player messages. A value set by hand that is not one of the offered choices is
+added to its list rather than rounded to the nearest one that is.
+
 | Setting | Default | Range | What it does |
 | --- | --- | --- | --- |
 | Restart automatically | off | on/off | The master switch. Nothing happens until this is on. |
@@ -144,8 +149,8 @@ touched, so pin anything you want to keep.
 | Final countdown | 10 s | 0 to 60 | Messages once a second just before the restart. |
 | Minimum gap between restarts | 60 min | 0 to 1440 | No second automatic restart inside this window, whatever is found. |
 | Wait for backup up to | 120 s | 0 to 900 | How long a restart may wait for its backup before going ahead anyway. |
-| Back up before restarting | on | on/off | Saves the world, then backs up the server. |
-| Also check for game updates | on | on/off | Watches the installed build as well as the mods. |
+| Back up before restarting | on | on/off | Saves the world, then backs up the server. Applies to automatic restarts and to the Restart button on the Mods page. |
+| What to watch | mods and game | | Whether the installed game build is compared as well as the mods. |
 | First warning | text | | Sent when the window opens. |
 | One minute warning | text | | Sent a minute before. |
 | Countdown | text | | Sent once a second during the countdown. |
@@ -199,15 +204,74 @@ disabled mods, since there it is information rather than a trigger.
 
 One check is one request, not one per mod: `GetPublishedFileDetails` takes fifty
 ids per call, and the whole panel is batched into a single warm-up call before
-any server is ticked, so six servers sharing mods still cost one request. At the
-five minute default that is under 300 requests a day for a panel, against an
-endpoint whose informal ceiling is in the tens of thousands.
+any server is ticked, so six servers sharing mods still cost one request. The
+warm-up only covers servers whose next check is actually due, so the once a
+minute scheduler tick does not turn into once a minute traffic. At the five
+minute default that is under 300 requests a day for a panel, against an endpoint
+whose informal ceiling is in the tens of thousands.
+
+Workshop ids Steam answers about but does not recognise, because the mod was
+deleted or made private, are remembered as gone for six hours. Otherwise a
+handful of dead entries in `WorkshopItems=` puts every check back on the wire no
+matter how warm the cache is.
 
 There is no API key to add. `GetPublishedFileDetails` is keyless and rate limited
 by IP, so the lever is fewer calls rather than a bigger quota. If a fetch does
 fail, Steam is left alone for ten minutes and cached metadata is used in the
 meantime, which means an outage degrades to "no update detected" rather than to a
 retry storm.
+
+**Check now is the exception.** It clears that backoff, refetches every Workshop
+item however fresh the cache is, and skips the build cache too, because the
+reason anyone presses it is that they already know an update exists. It is also
+the one place that reports "could not check everything" rather than "everything
+up to date" when a lookup failed, since a green tick over missing information is
+worse than no answer at all.
+
+### What is compared
+
+Every id in `WorkshopItems=`, not only the ones backing a mod in `Mods=`.
+SteamCMD downloads the whole `WorkshopItems` list on boot, so checking less than
+that produced the obvious complaint: the check reported nothing and the restart
+downloaded something.
+
+The two are still treated differently. An outdated item that no enabled mod
+comes from cannot lock anybody out of the server, so it is reported with "no
+restart needed for this one" and never triggers an automatic restart. It comes
+along for free whenever the server next restarts for some other reason.
+
+### Deleting a mod
+
+Three things have to go, not two. The files under
+`steamapps/workshop/content/<appid>/<id>`, the id in `WorkshopItems=`, and the
+item's entry in `steamapps/workshop/appworkshop_<appid>.acf`. That last file is
+SteamCMD's own list of what it believes is installed, and while an id sits in it
+with no files on disk, the next boot downloads the mod again. It then shows up
+under Available, because it is on the server but not in `Mods=`.
+
+The manifest is Valve's file, so the edit is deliberately timid: whole balanced
+blocks only, the result is checked for balance before anything is written, and
+at the first surprise it writes nothing and says so. A stale entry is a
+nuisance, a mangled manifest stops the server downloading anything at all.
+
+Servers upgrading from an earlier version have usually collected a pile of these
+already. The page counts them and offers a **Clean up** button.
+
+### Restart history
+
+The last twenty restarts the plugin performed are kept in the side-car and shown
+on the page, closed by default. Each one records the time, whether it was
+automatic or somebody pressing Restart, what changed and from which version to
+which, whether the update was confirmed afterwards, how long the server was
+down, how many players were online, and which backup was taken.
+
+Version numbers come from `modversion` in `mod.info` when a mod declares one.
+Most do not, and those show the Workshop timestamps instead. Never a mix, and
+never a version invented to fill the column.
+
+Restarts made anywhere else, from the panel's own power controls or from the
+host, are invisible to the plugin and are not in the list. The panel says so
+rather than letting the list look complete.
 
 The game build check is cached per app id and shared across servers, so it costs
 roughly six requests an hour to `api.steamcmd.net` no matter how many servers run
@@ -332,9 +396,13 @@ stays out of it:
 mkdir -p /tmp/rel/pz-mod-manager
 git archive main | tar -x -C /tmp/rel/pz-mod-manager
 cd /tmp/rel
-rm -rf pz-mod-manager/tests pz-mod-manager/lint.sh pz-mod-manager/check.py
+rm -rf pz-mod-manager/tests pz-mod-manager/lint.sh pz-mod-manager/check.py pz-mod-manager/docs
 zip -r pz-mod-manager.zip pz-mod-manager
 ```
+
+Nothing that is not needed to run the plugin goes in. `docs/` is README artwork
+and the script that draws it, and the three dev tools below are for this
+repository, not for anyone's panel.
 
 `tests/stubs.php` in particular declares classes named `App\Models\Server` and
 `Illuminate\Support\Facades\Log` so the phase tests can run without a panel.

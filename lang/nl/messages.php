@@ -8,8 +8,9 @@ return [
     'auto_activate_hint' => 'Probeert de mod meteen aan te zetten zodat één herstart genoeg is. Wordt na de download automatisch geverifieerd en gecorrigeerd.',
     'auto' => [
         'title' => 'Automatisch herstarten bij updates',
+        'section' => 'Automatisch herstarten',
         'settings' => 'Instellingen',
-        'hide' => 'Verbergen',
+        'settings_hint' => 'waarschuwtijd, back-ups, berichten',
         'save' => 'Opslaan',
         'check_now' => 'Nu controleren',
         'clear_failure' => 'Wissen en weer aanzetten',
@@ -18,6 +19,27 @@ return [
         'needs_flag' => 'Deze server draait SteamCMD niet opnieuw bij het opstarten (AUTO_UPDATE staat niet op 1), dus een herstart zou niets downloaden.',
         'set_flag' => 'Zet AUTO_UPDATE op 1',
         'placeholders' => 'Elk bericht mag :minutes, :seconds en :reason gebruiken. Laat een veld leeg om niets te sturen.',
+        'advanced' => 'Geavanceerd: tijden en de berichten die spelers zien',
+
+        'watching' => '{0} Houdt geen enkele ingeschakelde mod in de gaten|{1} Houdt 1 ingeschakelde mod in de gaten|[2,*] Houdt :count ingeschakelde mods in de gaten',
+        'watching_game' => 'en de game-build.',
+        'watching_nogame' => 'en verder niets. Er wordt niet op game-updates gelet.',
+        'checked' => 'Gecontroleerd :ago, volgende controle om :next.',
+        'next_soon' => 'zo meteen',
+        'never_checked' => 'Nog niet gecontroleerd. De eerste controle draait bij de volgende ronde van de planner.',
+        'last_restart' => 'Laatste herstart :when, :reason.',
+        'no_restarts' => 'Nog geen herstarts door deze plugin vastgelegd.',
+
+        'choice' => [
+            'recommended' => '(aanbevolen)',
+            'minutes' => '{1} 1 minuut|[2,*] :count minuten',
+            'custom' => ':value (je eigen waarde)',
+            'warn_none' => 'Geen waarschuwing, meteen herstarten',
+            'backup_on' => 'Altijd, voor elke herstart',
+            'backup_off' => 'Nooit, meteen herstarten',
+            'watch_both' => 'Mods en game-updates',
+            'watch_mods' => 'Alleen mods',
+        ],
 
         'phase' => [
             'off' => 'Uit. Er herstart niets vanzelf.',
@@ -34,7 +56,8 @@ return [
             'cooldown_minutes' => 'Minimale tijd tussen herstarts (minuten)',
             'backup_wait_seconds' => 'Wacht op back-up tot (seconden)',
             'backup' => 'Back-up maken voor de herstart',
-            'check_game' => 'Ook op game-updates controleren',
+            'backup_hint' => 'Geldt voor automatische herstarts en voor de Herstart-knop op deze pagina.',
+            'check_game' => 'Waar wordt op gelet',
             'msg_warn' => 'Eerste waarschuwing',
             'msg_final' => 'Waarschuwing van een minuut',
             'msg_countdown' => 'Aftellen',
@@ -42,10 +65,44 @@ return [
         ],
     ],
 
+    'history' => [
+        'title' => 'Herstart-geschiedenis',
+        'summary' => 'laatste :when',
+        'scope' => 'Alleen herstarts die deze plugin heeft uitgevoerd. Een herstart via de console van het paneel of via de host is hier niet zichtbaar.',
+        'was' => 'was :value, geen latere versie vastgelegd',
+        'down' => 'na :time weer online',
+        'by' => 'Gestart door :who.',
+        'backup' => 'Back-up #:id vooraf gemaakt.',
+        'no_backup' => 'Geen back-up gemaakt.',
+        'players' => '{0} Niemand was online.|{1} 1 speler online.|[2,*] :count spelers online.',
+
+        'why_updates' => '{1} Om 1 mod-update toe te passen|[2,*] Om :count mod-updates toe te passen',
+        'why_pending' => '{1} Om 1 nieuw ingeschakelde mod te laden|[2,*] Om :count nieuw ingeschakelde mods te laden',
+        'why_manual' => 'Herstart aangevraagd vanaf de Mods-pagina',
+
+        'trigger' => [
+            'auto' => 'Automatisch, :reason-update',
+            'manual' => 'Handmatig',
+        ],
+
+        'reason' => [
+            'update' => 'om een update toe te passen',
+            'manual' => 'met de hand gestart',
+        ],
+
+        'outcome' => [
+            'verified' => 'geverifieerd',
+            'failed' => 'mislukt',
+            'pending' => 'wacht op de server',
+            'unverified' => 'niet geverifieerd',
+        ],
+    ],
+
     'stat' => [
         'active' => 'Aan',
         'available' => 'Beschikbaar',
         'restart' => 'Herstart nodig',
+        'updates' => 'Update wacht',
         'errors' => 'Mod-fouten',
     ],
 
@@ -128,8 +185,10 @@ return [
         'maps_missing' => 'Kaart-mods gevonden die niet in Map= staan: :maps.',
         'mod_errors' => 'Deze mods gaven fouten tijdens de laatste start: :mods.',
         'order_changed' => 'De load-order is gewijzigd maar nog niet actief - herstart de server om hem toe te passen.',
+        'ghosts' => '{1} :count Workshop-item is hier verwijderd, maar SteamCMD heeft het nog op zijn lijst met geinstalleerde items staan, dus het haalt zichzelf bij de volgende herstart weer binnen en duikt op onder Beschikbaar.|[2,*] :count Workshop-items zijn hier verwijderd, maar SteamCMD heeft ze nog op zijn lijst met geinstalleerde items staan, dus ze halen zichzelf bij de volgende herstart weer binnen en duiken op onder Beschikbaar.',
         'duplicates' => 'Dubbele regels zijn automatisch verwijderd: :mods.',
         'updates' => '{1} :count mod heeft een nieuwere versie op Steam - herstart de server om bij te werken.|[2,*] :count mods hebben een nieuwere versie op Steam - herstart de server om bij te werken.',
+        'updates_idle' => '{1} Hiervoor hoeft niet herstart te worden. :count mod op deze server heeft een nieuwere versie op Steam maar staat niet aan, dus niemand laadt hem en hij werkt vanzelf bij zodra de server ooit herstart:|[2,*] Hiervoor hoeft niet herstart te worden. :count mods op deze server hebben een nieuwere versie op Steam maar staan niet aan, dus niemand laadt ze en ze werken vanzelf bij zodra de server ooit herstart:',
     ],
 
     'bulk' => [
@@ -185,6 +244,12 @@ return [
         'cleaned' => 'Opgeruimd.',
         'maps_added' => 'Kaarten toegevoegd aan de config.',
         'restarting' => 'Herstart aangevraagd.',
+        'ghosts_cleared' => '{1} :count Workshop-item van de installatielijst van SteamCMD gehaald|[2,*] :count Workshop-items van de installatielijst van SteamCMD gehaald',
+        'ghosts_failed' => 'De bestanden zijn opgeruimd, maar de installatielijst van SteamCMD kon niet herschreven worden, dus deze kunnen alsnog terugkomen. Controleer de rechten op steamapps/workshop.',
+        'restart_backup_done' => 'Er is eerst een back-up gemaakt, en die was klaar voordat de herstart uitging.',
+        'restart_backup_running' => 'Er is eerst een back-up gestart. Die was nog bezig, dus de herstart is doorgegaan zonder langer te wachten.',
+        'restart_backup_failed' => 'Back-ups staan aan, maar het paneel wilde er geen starten (er loopt er misschien al een, of deze server zit aan zijn back-uplimiet). De herstart is toch doorgegaan.',
+        'restart_no_backup' => 'Er is geen back-up gemaakt. Zet dat aan onder Instellingen als je er voor elke herstart een wilt.',
         'restart_failed' => 'Herstarten mislukt',
         'config_error' => 'De serverconfig kon niet gelezen worden - er is niets gewijzigd.',
         'auto_activated' => 'Automatisch aangezet na download',

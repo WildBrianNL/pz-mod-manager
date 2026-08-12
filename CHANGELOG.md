@@ -1,5 +1,72 @@
 # Changelog
 
+## 3.0.0
+
+- **Fixed: "Check now" said everything was up to date while a restart went on to
+  download updates.** Four separate causes, all of them in the same direction.
+  The check only looked at Workshop items backing a mod in `Mods=`, while
+  SteamCMD downloads everything in `WorkshopItems=` on boot. The game build id
+  was served from a ten minute cache. A failed Steam lookup fell back to stale
+  data silently. And the button reused whatever the scheduler had already
+  fetched. It now compares every Workshop item, refetches everything when you
+  press it, and reports "could not check everything" instead of a green tick
+  when Steam cannot be reached.
+
+- **Fixed: verification was still judging the wrong thing after a restart.** The
+  2.5.1 fix recorded which Workshop items a restart was for, but the phase
+  change to verifying rebuilt its state from scratch and dropped that list, so
+  verification fell back to the old "is anything outdated" test anyway. The test
+  covering it built the verifying state by hand and never crossed the transition
+  that broke it.
+
+- **Fixed: deleted mods came back on every restart.** Removing a mod took away
+  the files and the `WorkshopItems=` entry, but not the item from
+  `steamapps/workshop/appworkshop_<appid>.acf`, which is SteamCMD's own record of
+  what it has installed. On the next boot SteamCMD found an installed item with
+  no files and downloaded it again, so the mod reappeared under Available,
+  forever. Deleting now clears that entry too, and the page offers a one-off
+  clean-up for the ones a server has already collected. One server here had
+  thirty mods configured and ninety-six of these waiting to come back.
+
+- **New: a restart history.** The last twenty restarts this plugin performed,
+  with the time, why it happened, which mod went from which version to which,
+  whether the update was confirmed afterwards, how long the server was down, and
+  how many players were online. Version numbers come from `mod.info` when a mod
+  declares one and from the Workshop timestamps when it does not. Restarts made
+  from the panel console or the host are not in the list and the panel says so.
+
+- **New: an update to a mod that is not enabled no longer looks like a reason to
+  restart.** It is reported, with "no restart needed for this one" first,
+  because nobody loads it and it updates on its own at the next restart.
+
+- **Changed: the Restart button on the Mods page takes a backup too.** The
+  backup setting used to apply only to automatic restarts. It now covers both,
+  still on by default, and can be switched off.
+
+- **Fixed: the plugin was asking Steam for everything once a minute.** The
+  scheduler tick warms Steam metadata for the whole panel in one batched call,
+  but it did that on every tick while each server is only checked every five
+  minutes. On a server with 126 Workshop items that is three requests a minute
+  against a keyless, IP rate limited endpoint, which is enough to get refused.
+  Warming now skips servers that are not due for a check.
+
+- **Fixed: a deleted Workshop mod counted as Steam being down.** A batch that
+  came back with no usable items was treated the same as a batch that never
+  arrived, so it tripped the ten minute backoff and made the page report the
+  whole server as unchecked. The two are now told apart, and ids Steam says it
+  does not know are remembered for six hours instead of being asked about on
+  every check.
+
+- **Fixed: "could not check everything" was shown in green with a tick.** The
+  status colour was picked from the phase alone, so the one message this release
+  exists to surface was painted like a healthy result.
+
+- **Changed: the settings panel.** Warning time, check interval, backups and
+  what to watch are four named choices instead of five number boxes. Timings and
+  the four player messages moved behind Advanced. Settings and the history are
+  closed by default, and the status card at the top now shows what the plugin
+  checked and when, not just that it is switched on.
+
 ## 2.5.1
 
 - **Fixed: a second mod update during a restart looked like a failed restart.**

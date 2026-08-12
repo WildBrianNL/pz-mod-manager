@@ -134,9 +134,12 @@ namespace WildBrianNL\PZModManager\Services {
         /** @var array<int,string> */
         public static array $mods = ['ModA'];
 
+        /** @var array<int,string> */
+        public static array $workshopItems = [];
+
         public function read($server): array
         {
-            return ['ok' => true, 'mods' => self::$mods, 'workshopItems' => [], 'maps' => [],
+            return ['ok' => true, 'mods' => self::$mods, 'workshopItems' => self::$workshopItems, 'maps' => [],
                     'raw' => '', 'path' => 'x', 'error' => null];
         }
     }
@@ -160,11 +163,28 @@ namespace WildBrianNL\PZModManager\Services {
         /** Counted, because how often Steam is contacted is itself a requirement. */
         public static int $calls = 0;
 
+        /** Set by a test that wants to see what happens when Steam is down. */
+        public static bool $degraded = false;
+
+        /** @var array<int,int|null> the max-age each call was made with */
+        public static array $ages = [];
+
         public function details(array $ids, ?int $maxAge = null): array
         {
             self::$calls++;
+            self::$ages[] = $maxAge;
 
             return self::$details;
+        }
+
+        public function degraded(): bool
+        {
+            return self::$degraded;
+        }
+
+        public function clearBackoff(): void
+        {
+            self::$degraded = false;
         }
     }
 
@@ -195,7 +215,7 @@ namespace WildBrianNL\PZModManager\Services {
     {
         public static array $result = ['outdated' => false, 'installed' => 1, 'latest' => 1];
 
-        public function compare($server): array
+        public function compare($server, bool $fresh = false): array
         {
             return self::$result;
         }
@@ -240,9 +260,9 @@ namespace {
         public array $state;
 
         /** Deliberately does not call the parent constructor: there is no daemon here. */
-        public function __construct(array $auto, array $run)
+        public function __construct(array $auto, array $run, array $history = [])
         {
-            $this->state = ['pending' => [], 'locks' => [], 'auto' => $auto, 'run' => $run];
+            $this->state = ['pending' => [], 'locks' => [], 'auto' => $auto, 'run' => $run, 'history' => $history];
         }
 
         public function read($server): array
