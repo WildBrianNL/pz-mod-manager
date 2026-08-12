@@ -77,12 +77,25 @@ loaded, so every mod reports the truth:
 - Duplicate entries are removed.
 - Disabling a mod also removes its Workshop ID, so clients stop downloading it,
   while the files stay on the server for a quick re-enable.
-- Deleting a mod removes it from the config *and* deletes its files.
+- Deleting a mod removes it from the config, deletes its files, *and* takes the
+  item out of SteamCMD's own installed list. Miss that last one and the mod
+  downloads itself again on the next boot.
+
+**Knowing what happened**
+- A status card that shows its working: how many Workshop items were compared,
+  against which game build, when, and what the last restart was for.
+- **Check now** ignores every cache and asks Steam again, item by item. When it
+  cannot reach Steam it says so instead of reporting everything as fine.
+- A **restart history** of the last twenty restarts the plugin performed: the
+  time, the reason, which mod went from which version to which, whether the
+  update was confirmed afterwards, how long the server was down, and who was
+  online.
 
 **Problem detection** - each with a one-click fix where one exists:
 missing dependencies, mods that failed to load, build mismatches, mods that
 threw errors during the last boot, map mods absent from `Map=`, fatal
-world-loading crashes, and pending downloads.
+world-loading crashes, pending downloads, and deleted mods that SteamCMD is
+still holding on to.
 
 **Nice to have**
 - Titles, categories and thumbnails from Steam.
@@ -90,6 +103,8 @@ world-loading crashes, and pending downloads.
   a newer build than the files on disk.
 - Auto-restart when Steam has a newer version of a mod or of the game itself,
   with in-game warnings, a backup and a verification pass. Off by default.
+- The Restart button on the page takes a backup too, the same one the automatic
+  path takes.
 - Workshop changelog viewer.
 - Restart the server from the page (respects the `control.restart` permission).
 - English and Dutch, through standard Laravel language files.
