@@ -57,6 +57,11 @@
         .pzmm-acts{display:flex;align-items:center;gap:.25rem;flex:none;opacity:.5;transition:opacity .12s}
         .pzmm-row:hover .pzmm-acts,.pzmm-acts:focus-within{opacity:1}
         .pzmm-empty{font-size:.845rem;opacity:.55;padding:.9rem}
+        /* Changelog shortcut in the history. Dotted rather than solid: it opens a
+           panel, it does not leave the page, and a full underline here reads as
+           twenty outbound links in a list nobody asked to be loud. */
+        .pzmm-cl-link{text-align:left;cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}
+        .pzmm-cl-link:hover{text-decoration:underline solid}
         /* A flex summary loses its disclosure triangle in every browser and never
            gets one back in Safari, so the ones that use this class carry their own. */
         .pzmm-sum{cursor:pointer;list-style:none}
@@ -243,7 +248,19 @@
 
                         @foreach ($entry['changes'] as $change)
                             <div style="font-size:.74rem;padding:.1rem 0;display:flex;gap:.5rem;flex-wrap:wrap;align-items:baseline;">
-                                <span>{{ $change['name'] }}</span>
+                                {{-- The name is the changelog shortcut when the change
+                                     came from a Workshop item. Same overlay the mod list
+                                     opens, so "what changed here" is one click from the
+                                     line that says something changed. --}}
+                                @if ($change['workshop_id'] !== '')
+                                    <button type="button" class="pzmm-cl-link"
+                                            wire:click="openChangelog({{ \Illuminate\Support\Js::from($change['workshop_id']) }}, {{ \Illuminate\Support\Js::from($change['name']) }})"
+                                            title="{{ trans('pzmm::messages.tooltip.changelog') }}">
+                                        {{ $change['name'] }}
+                                    </button>
+                                @else
+                                    <span>{{ $change['name'] }}</span>
+                                @endif
                                 @if ($change['pair'])
                                     <span style="font-family:ui-monospace,monospace;font-size:.7rem;opacity:.75;">
                                         {{ $change['pair'][0] }} &rarr; <span style="color:#16a34a;">{{ $change['pair'][1] }}</span>
@@ -625,7 +642,7 @@
                     <div class="pzmm-acts">
                         @if ($row['workshop_id'])
                             <x-filament::icon-button icon="tabler-history" color="gray" size="sm"
-                                wire:click="openChangelog({{ \Illuminate\Support\Js::from($row['mod_id']) }})"
+                                wire:click="openChangelog({{ \Illuminate\Support\Js::from($row['workshop_id']) }}, {{ \Illuminate\Support\Js::from($row['name']) }})"
                                 :label="trans('pzmm::messages.tooltip.changelog')" />
                         @endif
                         @if ($this->canWrite())
@@ -700,7 +717,7 @@
                             <div class="pzmm-acts">
                                 @if ($row['workshop_id'])
                                     <x-filament::icon-button icon="tabler-history" color="gray" size="sm"
-                                        wire:click="openChangelog({{ \Illuminate\Support\Js::from($row['mod_id']) }})"
+                                        wire:click="openChangelog({{ \Illuminate\Support\Js::from($row['workshop_id']) }}, {{ \Illuminate\Support\Js::from($row['name']) }})"
                                         :label="trans('pzmm::messages.tooltip.changelog')" />
                                 @endif
                                 @if ($this->canWrite())
@@ -725,12 +742,11 @@
 
     {{-- Changelog overlay --}}
     @if ($changelogFor)
-        @php $clRow = collect(array_merge($active, $available))->firstWhere('mod_id', $changelogFor); @endphp
         <div style="position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:1rem;"
              wire:click.self="closeChangelog">
             <div class="fi-section" style="max-width:640px;width:100%;max-height:75vh;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;">
                 <div style="display:flex;align-items:center;gap:.6rem;padding:.85rem 1rem;border-bottom:1px solid rgba(128,128,128,.2);">
-                    <strong style="flex:1;font-size:.9rem;">{{ trans('pzmm::messages.changelog.title', ['mod' => $clRow['name'] ?? $changelogFor]) }}</strong>
+                    <strong style="flex:1;font-size:.9rem;">{{ trans('pzmm::messages.changelog.title', ['mod' => $changelogName]) }}</strong>
                     <x-filament::icon-button icon="tabler-x" color="gray" size="sm" wire:click="closeChangelog" :label="trans('pzmm::messages.changelog.close')" />
                 </div>
                 <div style="overflow-y:auto;padding:1rem;font-size:.8rem;line-height:1.55;">
@@ -746,12 +762,11 @@
                     @endif
                 </div>
                 <div style="padding:.7rem 1rem;border-top:1px solid rgba(128,128,128,.2);display:flex;justify-content:flex-end;gap:.5rem;">
-                    @if (($clRow['workshop_id'] ?? '') !== '')
-                        <x-filament::button size="sm" color="gray" tag="a"
-                            href="https://steamcommunity.com/sharedfiles/filedetails/changelog/{{ $clRow['workshop_id'] }}" target="_blank">
-                            {{ trans('pzmm::messages.changelog.open_steam') }}
-                        </x-filament::button>
-                    @endif
+                    <x-filament::button size="sm" color="gray" tag="a"
+                        href="https://steamcommunity.com/sharedfiles/filedetails/changelog/{{ $changelogFor }}"
+                        target="_blank" rel="noopener">
+                        {{ trans('pzmm::messages.changelog.open_steam') }}
+                    </x-filament::button>
                     <x-filament::button size="sm" wire:click="closeChangelog">{{ trans('pzmm::messages.changelog.close') }}</x-filament::button>
                 </div>
             </div>

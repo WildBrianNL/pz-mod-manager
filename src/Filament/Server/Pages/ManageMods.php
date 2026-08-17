@@ -122,7 +122,11 @@ class ManageMods extends Page
 
     public int $targetBuild = self::FALLBACK_BUILD;
 
+    /** Workshop id the changelog overlay is showing, null when it is closed. */
     public ?string $changelogFor = null;
+
+    /** Name to put in the overlay heading, since the mod may not be installed. */
+    public string $changelogName = '';
 
     /** @var array<int,array{date:string,text:string}> */
     public array $changelog = [];
@@ -1267,11 +1271,18 @@ class ManageMods extends Page
         return trans('pzmm::messages.history.why_manual');
     }
 
-    public function openChangelog(string $modId): void
+    /**
+     * Open the changelog overlay for a Workshop item.
+     *
+     * Keyed on the Workshop id rather than the mod id, because the history
+     * calls this too and a mod that was updated last week may have been
+     * removed since. The caller passes the name it already has on screen, so
+     * the heading never depends on the mod still being installed.
+     */
+    public function openChangelog(string $workshopId, string $name = ''): void
     {
-        $row = collect(array_merge($this->active, $this->available))->firstWhere('mod_id', $modId);
-        $workshopId = $row['workshop_id'] ?? '';
-        $this->changelogFor = $modId;
+        $this->changelogFor = $workshopId;
+        $this->changelogName = $name !== '' ? $name : $workshopId;
         $this->changelog = $workshopId !== '' ? app(SteamClient::class)->changelog($workshopId) : [];
         $this->changelogFailed = $this->changelog === [];
     }
@@ -1279,6 +1290,7 @@ class ManageMods extends Page
     public function closeChangelog(): void
     {
         $this->changelogFor = null;
+        $this->changelogName = '';
         $this->changelog = [];
         $this->changelogFailed = false;
     }
@@ -1345,6 +1357,10 @@ class ManageMods extends Page
                 $changes[] = [
                     'kind' => $change['kind'],
                     'name' => $change['name'] !== '' ? $change['name'] : $change['id'],
+                    // Empty for the game build and for the placeholder change a
+                    // failed detection writes, so the view links only what has
+                    // a Workshop page behind it.
+                    'workshop_id' => $change['kind'] === 'mod' && ctype_digit($change['id']) ? $change['id'] : '',
                     'pair' => $pair,
                     // No pair means the restart never got far enough to record
                     // the other side, which is worth saying rather than hiding.

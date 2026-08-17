@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.1.0
+
+- **The restart history links straight to a mod's changelog.** Every mod named
+  in a restart is now clickable, and it opens the same changelog panel the mod
+  list already had, with the button through to Steam still in the corner. The
+  line tells you a mod went from one version to the next; the click tells you
+  what the author changed, when they bothered to write it down. Requested by
+  AlfElFriki in issue #3.
+- The changelog panel is keyed on the Workshop item instead of the installed
+  mod, so it still opens for a mod that was updated last month and removed
+  since. Before this it would have come up empty.
+
 ## 3.0.0
 
 - **Fixed: "Check now" said everything was up to date while a restart went on to
