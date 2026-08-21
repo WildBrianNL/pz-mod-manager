@@ -1,5 +1,34 @@
 # Changelog
 
+## 3.2.0
+
+- **You can see what is waiting to download, and stop it.** Adding a mod, or a
+  whole collection, used to leave you with a banner saying a number of mods
+  would download on the next restart. Which ones, it did not say, and there was
+  no way to take one back out. There is now a "Queued for download" list above
+  Enabled, with the Steam title and thumbnail of every item, and a Cancel on
+  each one plus a Cancel all. Nothing has been downloaded at that point, so
+  cancelling deletes nothing from the server: it takes the item out of
+  `WorkshopItems=`, and with it the mod ids that "enable on add" had already
+  written into `Mods=`, which otherwise sat there as enabled mods that could
+  never load. Items SteamCMD still has on its own installed list are marked as
+  such and cleared from it too, or they would download themselves again anyway.
+  Requested by Drehmini in issue #4.
+- **The Mods page loads in half a second instead of three.** The mod scan
+  re-searched every Workshop directory one by one whenever the first search came
+  back with 95 hits or more, on the assumption that Wings had truncated the
+  result. Wings answers in full: on a server with 153 mods on disk the first
+  search returned all 364 matches in half a second, and the plugin then spent
+  another 2.2 seconds asking 127 more times for the same thing. It now compares
+  the search against the directory listing, which is one request, and looks up
+  only the items that really are missing. Same mods found, 2.7s down to 0.5s, and
+  the saving repeats on every click, because every action on the page rescans.
+- The plugin's own side-car file was read twice per page load. Once is enough.
+- The list stays hidden while the mod folder cannot be read. A failed scan
+  reports no installed mods at all, which makes every configured item look like
+  it is waiting to download, and a Cancel all over that would have offered to
+  throw away a working config.
+
 ## 3.1.0
 
 - **The restart history links straight to a mod's changelog.** Every mod named

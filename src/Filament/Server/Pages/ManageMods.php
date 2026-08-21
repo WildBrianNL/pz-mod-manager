@@ -95,6 +95,16 @@ class ManageMods extends Page
      */
     public array $ghosts = [];
 
+    /**
+     * Workshop items configured to download but not on disk yet, newest add
+     * last. Nothing here has files, so nothing here shows up under Enabled or
+     * Available: without this list an operator who adds a collection by mistake
+     * has no way to see what is coming, let alone stop it.
+     *
+     * @var array<int,array<string,mixed>>
+     */
+    public array $queued = [];
+
     /** Whether the egg re-runs steamcmd on boot; without it auto-restart is refused. */
     public bool $eggAutoUpdate = true;
 
@@ -184,12 +194,15 @@ class ManageMods extends Page
     public function load(): void
     {
         $server = $this->getServer();
-        $this->loadAuto($server);
+        // Read once and pass it on. The side-car is a Wings request, and this
+        // method and loadAuto() were each fetching their own copy of it.
+        $state = app(StateStore::class)->read($server);
+        $this->loadAuto($server, $state);
 
         $ini = app(IniService::class)->read($server);
         $this->configError = $ini['error'];
         if (!$ini['ok']) {
-            $this->active = $this->available = $this->alerts = [];
+            $this->active = $this->available = $this->alerts = $this->queued = [];
             $this->stats = ['active' => 0, 'available' => 0, 'restart' => 0, 'updates' => 0, 'errors' => 0];
 
             return;
@@ -226,7 +239,8 @@ class ManageMods extends Page
         $this->bundleSize = array_map('count', $byWorkshop);
         $awaitingDownload = array_values(array_diff($ini['workshopItems'], array_keys($byWorkshop)));
 
-        $this->locks = app(StateStore::class)->read($server)['locks'];
+        $this->locks = $state['locks'];
+        $this->queued = $this->queuedRows($awaitingDownload, $steam, $state['pending']);
 
         // Cached briefly: it is another Wings read, and the answer only changes
         // when somebody deletes a mod or the server boots.
@@ -370,6 +384,51 @@ class ManageMods extends Page
         }
 
         return $ini;
+    }
+
+    /**
+     * Rows for Workshop items that are configured but have no files yet.
+     *
+     * Steam metadata is already in hand from the lookup above, so this costs
+     * nothing extra: an item that was added a minute ago still gets its real
+     * title and thumbnail rather than a bare id.
+     *
+     * Nothing is returned when the mod scan failed. A failed scan reports no
+     * installed mods at all, which makes every configured item look like it is
+     * waiting to download, and a cancel button over that list would offer to
+     * throw away a working config.
+     *
+     * @param  string[]  $awaitingDownload
+     * @param  array<string,array<string,mixed>>  $steam
+     * @param  array<string,string[]>  $pending
+     * @return array<int,array<string,mixed>>
+     */
+    private function queuedRows(array $awaitingDownload, array $steam, array $pending): array
+    {
+        if (!$this->indexOk) {
+            return [];
+        }
+
+        $ghosts = array_flip($this->ghosts);
+        $rows = [];
+
+        foreach ($awaitingDownload as $workshopId) {
+            $meta = $steam[$workshopId] ?? [];
+            $rows[] = [
+                'workshop_id' => $workshopId,
+                'name' => $meta['title'] ?? $workshopId,
+                'preview' => $meta['preview'] ?? null,
+                'url' => $meta['url'] ?? "https://steamcommunity.com/sharedfiles/filedetails/?id=$workshopId",
+                // The mod ids "enable on add" already wrote into Mods= for this
+                // item. Shown so it is clear what cancelling takes back out.
+                'mods' => array_values($pending[$workshopId] ?? []),
+                // Already on SteamCMD's installed list, so cancelling has to
+                // clear that too or the next boot downloads it anyway.
+                'ghost' => isset($ghosts[$workshopId]),
+            ];
+        }
+
+        return $rows;
     }
 
     /** @return array<string,mixed> */
@@ -938,6 +997,91 @@ class ManageMods extends Page
         Notification::make()->title(trans('pzmm::messages.notify.removed'))->success()->send();
     }
 
+    /**
+     * Take a queued Workshop item back out before the server ever downloads it.
+     *
+     * Nothing has been downloaded, so there are no files to delete. What has to
+     * go is the entry in WorkshopItems=, whatever mod ids "enable on add"
+     * guessed into Mods= for it, and the guess itself, or the page would show an
+     * enabled mod that can never load.
+     */
+    public function cancelQueued(string $workshopId): void
+    {
+        $this->cancelQueuedItems([$workshopId]);
+    }
+
+    public function cancelAllQueued(): void
+    {
+        $this->cancelQueuedItems(array_column($this->queued, 'workshop_id'));
+    }
+
+    /**
+     * One config write for the whole batch, so cancelling forty items from a
+     * collection is one write rather than forty.
+     *
+     * @param  string[]  $workshopIds
+     */
+    private function cancelQueuedItems(array $workshopIds): void
+    {
+        abort_unless($this->canWrite(), 403);
+
+        // The view hides these controls when the scan failed, but a page that
+        // was rendered before the scan broke can still send the click.
+        if (!$this->indexOk) {
+            Notification::make()->title(trans('pzmm::messages.notify.queue_blind'))->warning()->send();
+
+            return;
+        }
+
+        $queued = array_flip(array_column($this->queued, 'workshop_id'));
+        $ids = array_values(array_filter($workshopIds, fn ($id) => isset($queued[$id])));
+        if (!$ids) {
+            return;
+        }
+
+        $server = $this->getServer();
+        $ini = app(IniService::class)->read($server);
+        if (!$ini['ok']) {
+            Notification::make()->title(trans('pzmm::messages.notify.config_error'))->danger()->send();
+
+            return;
+        }
+
+        $store = app(StateStore::class);
+        $state = $store->read($server);
+
+        $drop = [];
+        foreach ($ids as $id) {
+            foreach ($state['pending'][$id] ?? [] as $modId) {
+                $drop[] = $modId;
+            }
+            unset($state['pending'][$id]);
+        }
+
+        app(IniService::class)->write(
+            $server,
+            array_values(array_filter($ini['workshopItems'], fn ($w) => !in_array($w, $ids, true))),
+            array_values(array_filter($ini['mods'], fn ($m) => !in_array($m, $drop, true))),
+        );
+        $store->write($server, $state);
+
+        // Items SteamCMD still lists as installed come back on the next boot
+        // however often they are cancelled here, so clear those as well.
+        $ghosts = array_values(array_intersect($ids, $this->ghosts));
+        if ($ghosts) {
+            app(ModScanner::class)->forgetInstalled($server, $ghosts);
+            Cache::forget("pzmm:manifest:{$server->id}");
+        }
+
+        $this->forgetCaches();
+        $this->load();
+
+        Notification::make()
+            ->title(trans_choice('pzmm::messages.notify.queue_cancelled', count($ids), ['count' => count($ids)]))
+            ->success()
+            ->send();
+    }
+
     public function addMod(): void
     {
         abort_unless($this->canWrite(), 403);
@@ -1311,9 +1455,9 @@ class ManageMods extends Page
      * `artisan optimize:clear` is routine on a panel; a cleared cache must not
      * quietly re-enable the feature or lose a restart that is half done.
      */
-    private function loadAuto(Server $server): void
+    private function loadAuto(Server $server, ?array $state = null): void
     {
-        $state = app(StateStore::class)->read($server);
+        $state ??= app(StateStore::class)->read($server);
         $this->auto = $state['auto'];
         $this->autoRun = $state['run'];
         $this->history = $this->formatHistory($state['history']);

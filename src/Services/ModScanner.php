@@ -217,8 +217,16 @@ class ModScanner
             return ['mods' => [], 'fingerprint' => 'error', 'ok' => false];
         }
 
+        // Wings used to cap a recursive search at about a hundred results, which
+        // silently hid mods on a well stocked server. The old guard here assumed
+        // that any result set at the cap was truncated and re-searched every
+        // workshop directory one by one: 127 extra requests on a server whose
+        // Wings had answered the first search in full with 364 hits, on every
+        // page load and every click. Ask the cheap question instead. The
+        // directory listing is one request and says which items exist, so only
+        // the items the search really missed get looked up.
         if (count($hits) >= self::SEARCH_CAP) {
-            $hits = $this->searchPerItem($repo, $base) ?: $hits;
+            $hits = $this->fillMissingItems($repo, $base, $hits);
         }
 
         $groups = [];
@@ -344,25 +352,48 @@ class ModScanner
         return $out;
     }
 
-    private function searchPerItem(DaemonFileRepository $repo, string $base): array
+    /**
+     * Top up a search that may have been truncated, one workshop item at a time.
+     *
+     * A directory with no mod.info in it is not evidence of truncation: a part
+     * downloaded item, or one holding something that is not a mod, legitimately
+     * has none. Such a directory is searched once, comes back empty, and that is
+     * the end of it, rather than being treated as a reason to distrust the whole
+     * result.
+     *
+     * @param  array<int,array<string,mixed>>  $hits
+     * @return array<int,array<string,mixed>>
+     */
+    private function fillMissingItems(DaemonFileRepository $repo, string $base, array $hits): array
     {
-        $all = [];
-        try {
-            foreach ($repo->getDirectory($base) as $entry) {
-                if (empty($entry['directory'])) {
-                    continue;
-                }
-                try {
-                    $all = array_merge($all, $repo->search('mod.info', $base . '/' . $entry['name']));
-                } catch (\Throwable $e) {
-                    continue;
-                }
+        $seen = [];
+        foreach ($hits as $hit) {
+            if (preg_match('#/content/' . self::APP_ID . '/(\d+)/#', (string) ($hit['name'] ?? ''), $m)) {
+                $seen[$m[1]] = true;
             }
-        } catch (\Throwable $e) {
-            return [];
         }
 
-        return $all;
+        try {
+            $dirs = $repo->getDirectory($base);
+        } catch (\Throwable $e) {
+            // No listing means no way to tell what is missing. The search we
+            // already have is better than nothing and better than 127 guesses.
+            return $hits;
+        }
+
+        foreach ($dirs as $entry) {
+            $name = (string) ($entry['name'] ?? '');
+            if (empty($entry['directory']) || isset($seen[$name])) {
+                continue;
+            }
+            try {
+                $hits = array_merge($hits, $repo->search('mod.info', $base . '/' . $name));
+            } catch (\Throwable $e) {
+                continue;
+            }
+        }
+
+        return $hits;
     }
 
     private function readInfo(DaemonFileRepository $repo, string $path): ?string

@@ -111,6 +111,8 @@ return [
         'active_hint' => '- volgorde = load-order',
         'available' => 'Beschikbaar',
         'available_hint' => '- staat op de server, niet aan',
+        'queued' => 'Klaargezet om te downloaden',
+        'queued_hint' => '- toegevoegd, downloadt bij de volgende herstart',
     ],
 
     'status' => [
@@ -171,6 +173,8 @@ return [
         'changelog' => 'Changelog',
         'enable_dep' => 'Zet aan',
         'clean_up' => 'Opruimen',
+        'cancel_queued' => 'Annuleren',
+        'cancel_all_queued' => 'Alles annuleren',
         'add_maps' => 'Toevoegen aan Map=',
     ],
 
@@ -206,6 +210,12 @@ return [
         'restart' => 'Server nu herstarten? Spelers die online zijn worden losgekoppeld.',
         'disable' => 'Deze mod uitzetten? Clients downloaden hem dan niet meer. De bestanden blijven staan zodat je hem zo weer aan kunt zetten.',
         'delete' => 'Deze mod én de bestanden van de server verwijderen? Dit kan niet ongedaan worden gemaakt.',
+        'cancel_all_queued' => 'Alle klaargezette downloads annuleren? Er is nog niets gedownload, dus er wordt niets van de server verwijderd.',
+    ],
+
+    'queue' => [
+        'enables' => 'zet :mods aan zodra hij gedownload is',
+        'ghost' => 'SteamCMD heeft deze nog op zijn lijst staan, annuleren haalt hem daar ook weg',
     ],
 
     'empty' => [
@@ -232,6 +242,8 @@ return [
         'added_body' => 'Herstart de server om te downloaden. Daarna verschijnen ze onder "Beschikbaar".',
         'already_added' => 'Dat workshop-item stond er al in.',
         'invalid_id' => 'Geen geldig Workshop-ID gevonden in die invoer.',
+        'queue_cancelled' => '{1} :count klaargezet item geannuleerd|[2,*] :count klaargezette items geannuleerd',
+        'queue_blind' => 'Niets geannuleerd: de modmap kon niet gelezen worden, dus wat er echt klaarstaat is onbekend. Herlaad de pagina en probeer het opnieuw.',
         'removed' => 'Verwijderd en bestanden gewist.',
         'bulk_enabled' => '{1} :count mod ingeschakeld|[2,*] :count mods ingeschakeld',
         'bulk_disabled' => '{1} :count mod uitgeschakeld|[2,*] :count mods uitgeschakeld',

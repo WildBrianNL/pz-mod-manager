@@ -111,6 +111,8 @@ return [
         'active_hint' => '- order = load order',
         'available' => 'Available',
         'available_hint' => '- on the server, not enabled',
+        'queued' => 'Queued for download',
+        'queued_hint' => '- added, downloads on the next restart',
     ],
 
     'status' => [
@@ -171,6 +173,8 @@ return [
         'changelog' => 'Changelog',
         'enable_dep' => 'Enable it',
         'clean_up' => 'Clean up',
+        'cancel_queued' => 'Cancel',
+        'cancel_all_queued' => 'Cancel all',
         'add_maps' => 'Add to Map=',
     ],
 
@@ -206,6 +210,12 @@ return [
         'delete' => 'Delete this mod and its files from the server? This cannot be undone.',
         'bulk_disable' => 'Disable every selected mod? Clients stop downloading them, the files stay on the server.',
         'bulk_delete' => 'Delete every selected mod and its files from the server? This cannot be undone.',
+        'cancel_all_queued' => 'Cancel every queued download? Nothing has been downloaded yet, so nothing is deleted from the server.',
+    ],
+
+    'queue' => [
+        'enables' => 'enables :mods once downloaded',
+        'ghost' => 'SteamCMD still lists this one, so cancelling clears that too',
     ],
 
     'empty' => [
@@ -232,6 +242,8 @@ return [
         'added_body' => 'Restart the server to download. They appear under "Available" afterwards.',
         'already_added' => 'That workshop item was already added.',
         'invalid_id' => 'No valid Workshop ID found in that input.',
+        'queue_cancelled' => '{1} :count queued item cancelled|[2,*] :count queued items cancelled',
+        'queue_blind' => 'Nothing cancelled: the mod folder could not be read, so what is really waiting to download is unknown. Reload the page and try again.',
         'removed' => 'Removed and files deleted.',
         'bulk_enabled' => '{1} :count mod enabled|[2,*] :count mods enabled',
         'bulk_disabled' => '{1} :count mod disabled|[2,*] :count mods disabled',

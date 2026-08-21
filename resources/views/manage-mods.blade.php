@@ -534,6 +534,64 @@
         </div>
     @endif
 
+    {{-- Queued for download. Above Enabled on purpose: these are the newest
+         thing an operator did and the only list where the window to change your
+         mind closes on the next restart. Hidden when the mod scan failed, since
+         a failed scan makes every configured item look like it is queued and a
+         cancel button over that would offer to delete a working config. --}}
+    @if ($queued && $indexOk)
+        <div class="fi-section" style="border-radius:12px;">
+            <div class="pzmm-listhead">
+                <h3>{{ trans('pzmm::messages.section.queued') }} ({{ count($queued) }})</h3>
+                <span class="hint">{{ trans('pzmm::messages.section.queued_hint') }}</span>
+                @if ($this->canWrite() && count($queued) > 1)
+                    <button type="button" wire:click="cancelAllQueued"
+                            wire:confirm="{{ trans('pzmm::messages.confirm.cancel_all_queued') }}"
+                            style="margin-left:auto;font-size:11px;opacity:.6;text-decoration:underline;">
+                        {{ trans('pzmm::messages.action.cancel_all_queued') }}
+                    </button>
+                @endif
+            </div>
+
+            <div wire:loading.class="fi-disabled" wire:target="cancelQueued,cancelAllQueued,addMod,refresh">
+                @foreach ($queued as $row)
+                    <div class="pzmm-row" wire:key="q-{{ $row['workshop_id'] }}">
+                        @if ($row['preview'])
+                            <img src="{{ $row['preview'] }}" alt="" loading="lazy" class="pzmm-thumb" style="opacity:.65;" />
+                        @else
+                            <div class="pzmm-thumb" style="display:grid;place-items:center;background:rgba(128,128,128,.15);font-size:12px;font-weight:600;opacity:.6;">?</div>
+                        @endif
+
+                        <div class="pzmm-mi">
+                            <div class="pzmm-t">
+                                <a href="{{ $row['url'] }}" target="_blank" rel="noopener" class="pzmm-name">{{ $row['name'] }}</a>
+                                <span class="pzmm-pill">{{ trans('pzmm::messages.status.downloading') }}</span>
+                            </div>
+                            <div class="pzmm-sub">
+                                <code>{{ $row['workshop_id'] }}</code>
+                                @if ($row['mods'])
+                                    <span>{{ trans('pzmm::messages.queue.enables', ['mods' => implode(', ', $row['mods'])]) }}</span>
+                                @endif
+                                @if ($row['ghost'])
+                                    <span style="color:#d97706;">{{ trans('pzmm::messages.queue.ghost') }}</span>
+                                @endif
+                            </div>
+                        </div>
+
+                        <div class="pzmm-acts">
+                            @if ($this->canWrite())
+                                <x-filament::button size="xs" color="gray" icon="tabler-x"
+                                    wire:click="cancelQueued({{ \Illuminate\Support\Js::from($row['workshop_id']) }})">
+                                    {{ trans('pzmm::messages.action.cancel_queued') }}
+                                </x-filament::button>
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
     {{-- Enabled --}}
     <div class="fi-section" style="border-radius:12px;">
         <div class="pzmm-listhead">
