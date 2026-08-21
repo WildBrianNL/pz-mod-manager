@@ -34,6 +34,12 @@ doing.
 - Optional *auto-enable*: the plugin reads the mod id advertised on Steam so a
   single restart is often enough. The guess is verified against the real
   `mod.info` after download and corrected automatically if it was wrong.
+- **Queued for download**, with a way out. Everything added but not downloaded
+  yet is listed with its Steam title and thumbnail, and can be cancelled one at
+  a time or all at once. Nothing has been downloaded at that point, so
+  cancelling deletes nothing: the item leaves `WorkshopItems=`, and so do the
+  mod ids auto-enable had already written into `Mods=`. Handy after pasting the
+  wrong collection URL.
 
 **Honest status**
 The plugin reads the server log to see which mods the running server actually
@@ -89,7 +95,8 @@ loaded, so every mod reports the truth:
 - A **restart history** of the last twenty restarts the plugin performed: the
   time, the reason, which mod went from which version to which, whether the
   update was confirmed afterwards, how long the server was down, and who was
-  online.
+  online. Every mod named in a restart links to its changelog, so "what actually
+  changed" is one click from the line saying something changed.
 
 **Problem detection** - each with a one-click fix where one exists:
 missing dependencies, mods that failed to load, build mismatches, mods that
@@ -105,7 +112,9 @@ still holding on to.
   with in-game warnings, a backup and a verification pass. Off by default.
 - The Restart button on the page takes a backup too, the same one the automatic
   path takes.
-- Workshop changelog viewer.
+- Workshop changelog viewer, from the mod list and from the restart history. It
+  opens on the Workshop item rather than the installed mod, so it still works
+  for a mod that has since been removed.
 - Restart the server from the page (respects the `control.restart` permission).
 - English and Dutch, through standard Laravel language files.
 
@@ -280,6 +289,10 @@ automatic or somebody pressing Restart, what changed and from which version to
 which, whether the update was confirmed afterwards, how long the server was
 down, how many players were online, and which backup was taken.
 
+Every mod in the list is a link to its Workshop changelog. The list tells you a
+mod went from one version to the next, the link tells you what the author changed,
+when they bothered to write it down.
+
 Version numbers come from `modversion` in `mod.info` when a mod declares one.
 Most do not, and those show the Workshop timestamps instead. Never a mix, and
 never a version invented to fill the column.
@@ -392,6 +405,12 @@ Installed mods are discovered through a single Wings search for `mod.info`, whic
 handles every Build 42 layout. Parsed results are cached against a fingerprint of
 the files on disk, so a finished download appears immediately while repeat visits
 stay fast.
+
+On a big server that search is checked against the directory listing, one extra
+request, and only the Workshop items it genuinely missed are looked up
+individually. Older versions re-searched all of them whenever the first search
+returned a hundred-ish results, which cost a few seconds per page load and per
+click for nothing.
 
 ## Configuration
 
