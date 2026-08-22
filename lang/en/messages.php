@@ -215,7 +215,6 @@ return [
 
     'queue' => [
         'enables' => 'enables :mods once downloaded',
-        'ghost' => 'SteamCMD still lists this one, so cancelling clears that too',
     ],
 
     'empty' => [

@@ -215,7 +215,6 @@ return [
 
     'queue' => [
         'enables' => 'zet :mods aan zodra hij gedownload is',
-        'ghost' => 'SteamCMD heeft deze nog op zijn lijst staan, annuleren haalt hem daar ook weg',
     ],
 
     'empty' => [

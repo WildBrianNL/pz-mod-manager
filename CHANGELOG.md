@@ -1,5 +1,23 @@
 # Changelog
 
+## 3.2.1
+
+- **Fixed: cancelling a queued download warned that it was going to download
+  anyway.** Cancelling cleared the item from SteamCMD's own installed list only
+  when the page already considered it a ghost, and a ghost is by definition an
+  item that is not in the config, which a queued item always is. So a part
+  downloaded item kept its SteamCMD entry, turned into a ghost the moment it left
+  the config, and the page answered the cancel with a warning. It is cleared for
+  every cancelled item now, and the file is only rewritten when an entry really
+  matches. Reported by Drehmini in issue #4.
+- **Fixed: "Clean up" on that warning asked whether to restart the server, and
+  then did not restart it.** The alert list was rendered without a key, so
+  Livewire reused the element belonging to the alert that had been in that spot
+  a moment earlier. Cancelling a download replaced a "Restart now" alert with the
+  clean-up one, the old confirmation dialog came along for the ride, and clicking
+  OK ran the clean-up instead. The alerts and the restart history now carry keys
+  based on what they say and what they do.
+
 ## 3.2.0
 
 - **You can see what is waiting to download, and stop it.** Adding a mod, or a

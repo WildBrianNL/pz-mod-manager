@@ -409,7 +409,6 @@ class ManageMods extends Page
             return [];
         }
 
-        $ghosts = array_flip($this->ghosts);
         $rows = [];
 
         foreach ($awaitingDownload as $workshopId) {
@@ -422,9 +421,6 @@ class ManageMods extends Page
                 // The mod ids "enable on add" already wrote into Mods= for this
                 // item. Shown so it is clear what cancelling takes back out.
                 'mods' => array_values($pending[$workshopId] ?? []),
-                // Already on SteamCMD's installed list, so cancelling has to
-                // clear that too or the next boot downloads it anyway.
-                'ghost' => isset($ghosts[$workshopId]),
             ];
         }
 
@@ -1065,11 +1061,15 @@ class ManageMods extends Page
         );
         $store->write($server, $state);
 
-        // Items SteamCMD still lists as installed come back on the next boot
-        // however often they are cancelled here, so clear those as well.
-        $ghosts = array_values(array_intersect($ids, $this->ghosts));
-        if ($ghosts) {
-            app(ModScanner::class)->forgetInstalled($server, $ghosts);
+        // Always, not only for items that already looked like ghosts. The ghost
+        // list is "on SteamCMD's installed list but not in the config", so an
+        // item still sitting in WorkshopItems= is never in it, which is every
+        // item this method can be asked to cancel. Checking against it meant a
+        // part downloaded item kept its SteamCMD entry, became a ghost the
+        // moment it left the config, and the page answered a cancel with a
+        // warning that it was going to download anyway. This rewrites the file
+        // only when an entry actually matches.
+        if (app(ModScanner::class)->forgetInstalled($server, $ids)) {
             Cache::forget("pzmm:manifest:{$server->id}");
         }
 

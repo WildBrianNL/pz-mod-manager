@@ -224,7 +224,11 @@
 
             @foreach ($history as $entry)
                 @php $meta = $outcomeMeta[$entry['outcome']] ?? $outcomeMeta['unverified']; @endphp
-                <div style="display:grid;grid-template-columns:130px 1fr;gap:.9rem;padding:.7rem .9rem;border-top:1px solid rgba(128,128,128,.18);">
+                {{-- Keyed for the same reason the alerts are: a new restart pushes
+                     every row down one, and the changelog buttons carry the mod
+                     they belong to as a click argument. --}}
+                <div wire:key="h-{{ $entry['at'] }}-{{ $loop->index }}"
+                     style="display:grid;grid-template-columns:130px 1fr;gap:.9rem;padding:.7rem .9rem;border-top:1px solid rgba(128,128,128,.18);">
                     <div style="font-size:.75rem;line-height:1.4;">
                         {{ $entry['at'] }}
                         <span style="display:block;opacity:.55;font-size:.7rem;">{{ $entry['ago'] }}</span>
@@ -518,7 +522,14 @@
     @if (count($alerts))
         <div style="display:flex;flex-direction:column;gap:.4rem;">
             @foreach ($alerts as $alert)
-                <div class="pzmm-alert" style="{{ $alertStyle[$alert['type']] ?? $alertStyle['info'] }}">
+                {{-- Keyed on what the alert says and does, not on its position.
+                     Without this Livewire morphs one alert into another when the
+                     list changes: cancelling a queued download turned the
+                     "Restart now" alert into the SteamCMD clean-up one, and the
+                     old wire:confirm stayed behind, so "Clean up" asked whether
+                     to restart the server and then did not restart it. --}}
+                <div class="pzmm-alert" wire:key="alert-{{ md5($alert['text'] . ($alert['action']['method'] ?? '')) }}"
+                     style="{{ $alertStyle[$alert['type']] ?? $alertStyle['info'] }}">
                     <x-filament::icon :icon="$alert['type'] === 'danger' ? 'tabler-alert-octagon' : ($alert['type'] === 'warning' ? 'tabler-alert-triangle' : 'tabler-info-circle')"
                         style="width:15px;height:15px;flex:0 0 15px;margin-top:2px;" />
                     <span style="min-width:0;">{{ $alert['text'] }}</span>
@@ -571,9 +582,6 @@
                                 <code>{{ $row['workshop_id'] }}</code>
                                 @if ($row['mods'])
                                     <span>{{ trans('pzmm::messages.queue.enables', ['mods' => implode(', ', $row['mods'])]) }}</span>
-                                @endif
-                                @if ($row['ghost'])
-                                    <span style="color:#d97706;">{{ trans('pzmm::messages.queue.ghost') }}</span>
                                 @endif
                             </div>
                         </div>
